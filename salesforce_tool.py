@@ -98,13 +98,13 @@ class SalesforceToolsSuite(ctk.CTk):
         ).pack()
         
         # Divider
-        divider = tk.Frame(self.sidebar, bg=self.theme.shell_border, height=1)
+        divider = ctk.CTkFrame(self.sidebar, fg_color=self.theme.shell_border, height=1)
         divider.pack(fill="x", padx=16, pady=(0, 20))
         
         # Navigation buttons
         self.nav_buttons = {}
         tools = [
-            ("massive_query", "📤 Massive Query", "Estrai dati in bulk"),
+            ("massive_query", "📄 Massive Query", "Estrai dati in bulk"),
             ("viewer", "👁️ Visualizzatore", "Visualizza i dati estratti"),
             ("limits", "📊 Platform Limits", "Monitora limiti Salesforce"),
         ]
@@ -113,7 +113,7 @@ class SalesforceToolsSuite(ctk.CTk):
             self._create_nav_button(tool_id, label, tooltip)
         
         # Spacer
-        spacer = tk.Frame(self.sidebar, fg_color="transparent")
+        spacer = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         spacer.pack(fill="both", expand=True)
         
         # Footer buttons
@@ -235,8 +235,7 @@ class SalesforceToolsSuite(ctk.CTk):
 • Theme: {self.config.theme}
 • Output dir: {self.config.default_output_dir}
 
-Modifica il file di configurazione per cambiare le impostazioni:
-{self.config.CONFIG_FILE}"""
+Modifica il file di configurazione per cambiare le impostazioni."""
         )
     
     def _show_about(self) -> None:
