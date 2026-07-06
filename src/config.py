@@ -11,6 +11,9 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Configuration file path (class-level constant)
+CONFIG_FILE = Path.home() / ".salesforce-tools" / "config.json"
+
 
 @dataclass
 class AppConfig:
@@ -36,8 +39,6 @@ class AppConfig:
     max_workers: int = 4
     cli_timeout: int = 40
     
-    CONFIG_FILE: Path = field(default_factory=lambda: Path.home() / ".salesforce-tools" / "config.json", init=False)
-    
     @classmethod
     def load(cls) -> "AppConfig":
         """Load configuration from file or return defaults.
@@ -45,11 +46,11 @@ class AppConfig:
         Returns:
             AppConfig instance
         """
-        if cls.CONFIG_FILE.exists():
+        if CONFIG_FILE.exists():
             try:
-                with open(cls.CONFIG_FILE, "r") as f:
+                with open(CONFIG_FILE, "r") as f:
                     data = json.load(f)
-                logger.info(f"Loaded config from {cls.CONFIG_FILE}")
+                logger.info(f"Loaded config from {CONFIG_FILE}")
                 return cls(**data)
             except Exception as e:
                 logger.warning(f"Failed to load config: {e}. Using defaults.")
@@ -59,11 +60,11 @@ class AppConfig:
     def save(self) -> None:
         """Save configuration to file."""
         try:
-            self.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-            config_data = {k: v for k, v in asdict(self).items() if k != "CONFIG_FILE"}
-            with open(self.CONFIG_FILE, "w") as f:
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            config_data = asdict(self)
+            with open(CONFIG_FILE, "w") as f:
                 json.dump(config_data, f, indent=2)
-            logger.info(f"Config saved to {self.CONFIG_FILE}")
+            logger.info(f"Config saved to {CONFIG_FILE}")
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
     
