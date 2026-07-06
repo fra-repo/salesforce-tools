@@ -40,15 +40,27 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
         """
         self.embedded = embedded
         self.theme = get_theme("embedded" if embedded else theme_name)
-        
+
         super().__init__(master, fg_color="transparent")
-        
-        self.sf_cli = SalesforceCliManager()
+
+        try:
+            self.sf_cli = SalesforceCliManager()
+        except Exception as e:
+            logger.error(f"Salesforce CLI not available: {e}")
+            self.sf_cli = None
+
         self.root = ui_root or master
-        
+
         self._build_ui()
-        self._load_orgs_async()
-        
+
+        if self.sf_cli is None:
+            # Show a friendly message instead of crashing or silently doing nothing
+            self.load_btn.configure(state="disabled")
+            self.refresh_btn.configure(state="disabled")
+            self.status_label.configure(text="Salesforce CLI non trovato. Installa sf/sfdx e riavvia.")
+        else:
+            self._load_orgs_async()
+
         logger.info("LimitMonitorApp initialized")
     
     def _build_ui(self) -> None:
@@ -128,32 +140,35 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
         """Load orgs in background."""
         import threading
         threading.Thread(target=self._discover_orgs, daemon=True).start()
-    
+
     def _discover_orgs(self) -> None:
-        """Discover available orgs."""
+        """Discover available orgs (runs in background thread)."""
         try:
             aliases = self.sf_cli.discover_org_aliases()
-            if not aliases:
+            has_orgs = bool(aliases)
+            if not has_orgs:
                 aliases = ["Nessuna org trovata"]
-                self.load_btn.configure(state="disabled")
-            else:
-                self.load_btn.configure(state="normal")
-            
-            self.org_combo.configure(values=aliases)
-            self.org_var.set(aliases[0])
-            self.status_label.configure(
-                text=f"Trovate {len(aliases)} org registrate"
-            )
+            self.root.after(0, lambda a=aliases, ok=has_orgs: self._update_org_combo(a, ok))
         except Exception as e:
             logger.error(f"Org discovery failed: {e}")
-            self.status_label.configure(text=f"Errore: {e}")
+            err = str(e)
+            self.root.after(0, lambda: self.status_label.configure(text=f"Errore: {err}"))
+
+    def _update_org_combo(self, aliases: List[str], has_orgs: bool) -> None:
+        """Apply org discovery results on the main thread."""
+        self.refresh_btn.configure(state="normal")
+        self.load_btn.configure(state="normal" if has_orgs else "disabled")
+        self.org_combo.configure(values=aliases)
+        self.org_var.set(aliases[0])
+        count_text = f"Trovate {len(aliases)} org registrate" if has_orgs else "Nessuna org trovata"
+        self.status_label.configure(text=count_text)
     
     def _refresh_orgs(self) -> None:
         """Refresh org list."""
         self.refresh_btn.configure(state="disabled")
         self.sf_cli.clear_cache()
         self._load_orgs_async()
-        self.refresh_btn.configure(state="normal")
+        # Button is re-enabled by _update_org_combo once the background thread finishes
     
     def _load_limits(self) -> None:
         """Load and display limits for selected org."""

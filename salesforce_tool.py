@@ -299,7 +299,13 @@ def main():
     """Entry point."""
     try:
         app = SalesforceToolsSuite()
-        app.mainloop()
+        # _build_ui may call self.destroy() on tool-init failure and return
+        # without raising.  Guard against calling mainloop on a dead Tcl app.
+        if app.winfo_exists():
+            app.mainloop()
+        else:
+            logger.error("Application destroyed during initialization; exiting")
+            sys.exit(1)
     except Exception as e:
         logger.exception(f"Fatal error: {e}")
         print(f"Errore fatale: {e}")
