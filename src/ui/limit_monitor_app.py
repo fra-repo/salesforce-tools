@@ -6,6 +6,7 @@ import threading
 import logging
 from typing import List
 import json
+import math
 
 from ..core.sf_cli import SalesforceCliManager
 from ..core.exceptions import SalesforceError
@@ -20,6 +21,111 @@ from ..ui.components import (
 import customtkinter as ctk
 
 logger = logging.getLogger(__name__)
+
+
+class GaugeWidget(ctk.CTkFrame):
+    """Circular gauge widget for displaying limit usage."""
+    
+    def __init__(self, master, name: str, used: int, total: int, theme, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self.theme = theme
+        self.name = name
+        self.used = used
+        self.total = total
+        self.percentage = (used / total * 100) if total > 0 else 0
+        
+        # Create canvas for gauge
+        self.canvas = ctk.CTkCanvas(
+            self,
+            width=120,
+            height=120,
+            bg=theme.card_bg,
+            highlightthickness=0,
+        )
+        self.canvas.pack(pady=(0, 8))
+        self._draw_gauge()
+        
+        # Name label
+        name_label = ctk.CTkLabel(
+            self,
+            text=name,
+            text_color=theme.text,
+            font=(theme.font_family, 9, "bold"),
+        )
+        name_label.pack()
+        
+        # Percentage label
+        pct_label = ctk.CTkLabel(
+            self,
+            text=f"{self.percentage:.1f}%",
+            text_color=self._get_color_for_percentage(),
+            font=(theme.font_family, 11, "bold"),
+        )
+        pct_label.pack()
+        
+        # Usage label
+        usage_label = ctk.CTkLabel(
+            self,
+            text=f"{used} / {total}",
+            text_color=theme.muted,
+            font=(theme.font_family, 8),
+        )
+        usage_label.pack()
+    
+    def _get_color_for_percentage(self) -> str:
+        """Get color based on percentage usage."""
+        if self.percentage >= 90:
+            return self.theme.error
+        elif self.percentage >= 70:
+            return self.theme.warning
+        elif self.percentage >= 50:
+            return self.theme.accent
+        else:
+            return self.theme.success
+    
+    def _draw_gauge(self) -> None:
+        """Draw circular gauge on canvas."""
+        w = h = 120
+        center_x = center_y = w / 2
+        radius = 45
+        
+        # Background circle
+        self.canvas.create_oval(
+            center_x - radius,
+            center_y - radius,
+            center_x + radius,
+            center_y + radius,
+            fill=self.theme.border,
+            outline=self.theme.border,
+        )
+        
+        # Progress arc
+        if self.percentage > 0:
+            # Convert percentage to arc extent (0-360 degrees, but we use 0-270 for visual)
+            extent = (self.percentage / 100) * 270
+            
+            self.canvas.create_arc(
+                center_x - radius,
+                center_y - radius,
+                center_x + radius,
+                center_y + radius,
+                start=225,  # Start from top-left
+                extent=extent,
+                fill=self._get_color_for_percentage(),
+                outline=self._get_color_for_percentage(),
+                width=8,
+            )
+        
+        # Center white circle (donut effect)
+        inner_radius = 30
+        self.canvas.create_oval(
+            center_x - inner_radius,
+            center_y - inner_radius,
+            center_x + inner_radius,
+            center_y + inner_radius,
+            fill=self.theme.card_bg,
+            outline=self.theme.card_bg,
+        )
 
 
 class LimitMonitorApp:
@@ -127,30 +233,26 @@ class LimitMonitorApp:
         )
         self.check_limits_btn.pack(side="right")
         
-        # CONTENT AREA
+        # CONTENT AREA with scrollable frame
         content_card = ThemedFrame(main_frame, theme=self.theme, card_style=True)
         content_card.pack(fill="both", expand=True)
         
-        ThemedLabel(
+        # Scrollable container
+        self.scrollable_frame = ctk.CTkScrollableFrame(
             content_card,
-            "Limiti Piattaforma",
-            theme=self.theme,
-            size=12,
-            bold=True,
-        ).pack(anchor="w", padx=12, pady=(12, 6))
-        
-        self.limits_text = ctk.CTkTextbox(
-            content_card,
-            wrap="word",
-            font=("Consolas", 10),
-            border_width=1,
-            border_color=self.theme.border,
-            fg_color=self.theme.input_bg,
-            text_color=self.theme.text,
+            fg_color=self.theme.card_bg,
         )
-        self.limits_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-        self.limits_text.insert("1.0", "Seleziona un org e clicca 'Verifica Limiti' per visualizzare i dati...")
-        self.limits_text.configure(state="disabled")
+        self.scrollable_frame.pack(fill="both", expand=True, padx=12, pady=12)
+        
+        # Initial message
+        self.init_label = ThemedLabel(
+            self.scrollable_frame,
+            "Seleziona un org e clicca 'Verifica Limiti' per visualizzare i dati...",
+            theme=self.theme,
+            size=10,
+            color=self.theme.muted,
+        )
+        self.init_label.pack(pady=20)
     
     def _on_org_selected(self, event=None) -> None:
         """Handle org selection from combobox."""
@@ -164,11 +266,15 @@ class LimitMonitorApp:
             self.root.after(0, self._safe_log, msg)
     
     def _safe_log(self, msg: str) -> None:
-        """Write to limits text widget."""
-        self.limits_text.configure(state="normal")
-        self.limits_text.insert("end", f"{msg}\n")
-        self.limits_text.see("end")
-        self.limits_text.configure(state="disabled")
+        """Write to scrollable frame."""
+        label = ThemedLabel(
+            self.scrollable_frame,
+            msg,
+            theme=self.theme,
+            size=9,
+            color=self.theme.muted,
+        )
+        label.pack(anchor="w", pady=2)
     
     def _load_orgs_async(self) -> None:
         """Load orgs in background thread."""
@@ -205,7 +311,11 @@ class LimitMonitorApp:
             self._safe_log("❌ Seleziona un org")
             return
         
-        self._safe_log(f"\n⏳ Verifica limiti per {org}...")
+        # Clear previous content
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
+        
+        self._log(f"\n⏳ Verifica limiti per {org}...")
         threading.Thread(
             target=self._fetch_limits,
             args=(org,),
@@ -248,20 +358,35 @@ class LimitMonitorApp:
             self._log(f"❌ Errore: {e}")
     
     def _display_limits(self, limits) -> None:
-        """Display limits in UI."""
-        self.limits_text.configure(state="normal")
-        self.limits_text.delete("1.0", "end")
+        """Display limits with gauges in UI."""
+        # Clear previous content
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
         
         if not limits:
-            self.limits_text.insert("1.0", "Nessun limite trovato")
-            self.limits_text.configure(state="disabled")
+            self.scrollable_frame.pack(fill="both", expand=True, padx=12, pady=12)
+            label = ThemedLabel(
+                self.scrollable_frame,
+                "Nessun limite trovato",
+                theme=self.theme,
+                size=10,
+                color=self.theme.muted,
+            )
+            label.pack(pady=20)
             return
         
         # Handle different limit formats
         if isinstance(limits, dict):
             limits = [limits]
         
-        # Display limits
+        # Create a grid of gauges
+        gauge_frame = ThemedFrame(self.scrollable_frame, theme=self.theme, card_style=False)
+        gauge_frame.pack(fill="both", expand=True)
+        
+        col = 0
+        max_cols = 4
+        
+        # Display limits as gauges
         for limit in limits:
             try:
                 if isinstance(limit, dict):
@@ -278,13 +403,17 @@ class LimitMonitorApp:
                         used = 0
                         total = 0
                     
-                    percentage = (used / total * 100) if total > 0 else 0
-                    
-                    line = f"{name:35} | {used:8} / {total:8} ({percentage:6.1f}%)\n"
-                    self.limits_text.insert("end", line)
+                    # Create gauge widget
+                    gauge = GaugeWidget(
+                        gauge_frame,
+                        name=name,
+                        used=used,
+                        total=total,
+                        theme=self.theme,
+                    )
+                    gauge.grid(row=col // max_cols, column=col % max_cols, padx=10, pady=10, sticky="nsew")
+                    col += 1
             except Exception as e:
                 logger.error(f"Error displaying limit: {e}")
-                self.limits_text.insert("end", f"Errore: {e}\n")
         
-        self.limits_text.configure(state="disabled")
-        self._log(f"✅ Limiti caricati")
+        self._log(f"✅ Limiti caricati ({col} limiti visualizzati)")
