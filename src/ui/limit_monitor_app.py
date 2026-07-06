@@ -4,6 +4,7 @@ import tkinter as tk
 from pathlib import Path
 import threading
 import logging
+from typing import List
 
 from ..core.sf_cli import SalesforceCliManager
 from ..core.exceptions import SalesforceError
@@ -42,27 +43,24 @@ class LimitMonitorApp:
         self.root = ui_root or master
         self.embedded = embedded
         self.theme = get_theme("embedded" if embedded else theme_name)
-
-        super().__init__(master, fg_color="transparent")
-
+        
+        # Initialize managers
         try:
             self.sf_cli = SalesforceCliManager()
         except Exception as e:
-            logger.error(f"Salesforce CLI not available: {e}")
-            self.sf_cli = None
-
-        self.root = ui_root or master
-
+            logger.error(f"CLI initialization failed: {e}")
+            self._build_error_ui(str(e))
+            return
+        
+        # Threading
+        self.log_lock = threading.Lock()
+        
+        # Build UI
         self._build_ui()
-
-        if self.sf_cli is None:
-            # Show a friendly message instead of crashing or silently doing nothing
-            self.load_btn.configure(state="disabled")
-            self.refresh_btn.configure(state="disabled")
-            self.status_label.configure(text="Salesforce CLI non trovato. Installa sf/sfdx e riavvia.")
-        else:
-            self._load_orgs_async()
-
+        
+        # Load orgs async
+        threading.Thread(target=self._load_orgs_async, daemon=True).start()
+        
         logger.info("LimitMonitorApp initialized")
     
     def _build_error_ui(self, error_msg: str) -> None:
@@ -151,39 +149,43 @@ class LimitMonitorApp:
         self.limits_text.insert("1.0", "Seleziona un org e clicca 'Verifica Limiti' per visualizzare i dati...")
         self.limits_text.configure(state="disabled")
     
+    def _log(self, msg: str) -> None:
+        """Thread-safe logging to UI."""
+        with self.log_lock:
+            self.root.after(0, self._safe_log, msg)
+    
+    def _safe_log(self, msg: str) -> None:
+        """Write to limits text widget."""
+        self.limits_text.configure(state="normal")
+        self.limits_text.insert("end", f"{msg}\n")
+        self.limits_text.see("end")
+        self.limits_text.configure(state="disabled")
+    
     def _load_orgs_async(self) -> None:
-        """Load orgs in background."""
-        import threading
-        threading.Thread(target=self._discover_orgs, daemon=True).start()
-
-    def _discover_orgs(self) -> None:
-        """Discover available orgs (runs in background thread)."""
+        """Load orgs in background thread."""
         try:
             aliases = self.sf_cli.discover_org_aliases()
-            has_orgs = bool(aliases)
-            if not has_orgs:
-                aliases = ["Nessuna org trovata"]
-            self.root.after(0, lambda a=aliases, ok=has_orgs: self._update_org_combo(a, ok))
+            if aliases:
+                self._log(f"Trovate {len(aliases)} org")
+            else:
+                self._log("Nessuna org trovata")
+            self.root.after(0, self._update_org_combo, aliases)
         except Exception as e:
-            logger.error(f"Org discovery failed: {e}")
-            err = str(e)
-            self.root.after(0, lambda: self.status_label.configure(text=f"Errore: {err}"))
-
-    def _update_org_combo(self, aliases: List[str], has_orgs: bool) -> None:
-        """Apply org discovery results on the main thread."""
+            logger.error(f"Org loading failed: {e}")
+            self._log(f"Errore caricamento org: {e}")
+    
+    def _update_org_combo(self, aliases: List[str]) -> None:
+        """Update org combobox."""
+        self.alias_combo.configure(values=aliases, state="readonly")
+        if aliases:
+            self.alias_combo.set(aliases[0])
         self.refresh_btn.configure(state="normal")
-        self.load_btn.configure(state="normal" if has_orgs else "disabled")
-        self.org_combo.configure(values=aliases)
-        self.org_var.set(aliases[0])
-        count_text = f"Trovate {len(aliases)} org registrate" if has_orgs else "Nessuna org trovata"
-        self.status_label.configure(text=count_text)
     
     def _refresh_orgs(self) -> None:
         """Refresh org list."""
         self.refresh_btn.configure(state="disabled")
         self.sf_cli.clear_cache()
-        self._load_orgs_async()
-        # Button is re-enabled by _update_org_combo once the background thread finishes
+        threading.Thread(target=self._load_orgs_async, daemon=True).start()
     
     def _check_limits(self) -> None:
         """Check platform limits."""
