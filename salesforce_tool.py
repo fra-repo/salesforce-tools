@@ -8,7 +8,6 @@ Modular dashboard with embedded tools:
 
 import tkinter as tk
 from tkinter import messagebox
-from pathlib import Path
 import logging
 import sys
 
@@ -18,9 +17,6 @@ from src.logging_config import setup_logging
 from src.config import AppConfig
 from src.ui.modern_theme import get_theme
 from src.ui.modern_components import ModernFrame, ModernLabel, ModernButton
-from src.ui.massive_query_app import MassiveQueryApp
-from src.ui.viewer_app import DataViewerApp
-from src.ui.limit_monitor_app import LimitMonitorApp
 
 # Setup logging
 logger = setup_logging()
@@ -50,8 +46,16 @@ class SalesforceToolsSuite(ctk.CTk):
         # Bind window close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         
+        # Initialize tools dictionary
+        self.tools = {}
+        self.tool_frames = {}
+        self.nav_buttons = {}
+        
         # Build UI
         self._build_ui()
+        
+        # Schedule tool initialization after window is fully rendered
+        self.after(100, self._initialize_tools)
         
         logger.info("Main application initialized")
     
@@ -103,7 +107,6 @@ class SalesforceToolsSuite(ctk.CTk):
         divider.pack(fill="x", padx=16, pady=(0, 20))
         
         # Navigation buttons
-        self.nav_buttons = {}
         tools = [
             ("massive_query", "📄 Massive Query", "Estrai dati in bulk"),
             ("viewer", "👁️ Visualizzatore", "Visualizza i dati estratti"),
@@ -151,15 +154,33 @@ class SalesforceToolsSuite(ctk.CTk):
         self.content_frame.pack(side="right", fill="both", expand=True, padx=0, pady=0)
         
         # Container for tool frames
-        self.tool_frames = {}
         for tool_id, _, _ in tools:
             frame = ModernFrame(self.content_frame, theme=self.theme, card=False)
             frame.pack(fill="both", expand=True)
             frame.pack_forget()
             self.tool_frames[tool_id] = frame
-        
-        # Initialize tools
+            
+            # Add placeholder label
+            placeholder = ModernLabel(
+                frame,
+                f"Caricamento {tool_id}...",
+                theme=self.theme,
+                size=14,
+            )
+            placeholder.pack(expand=True)
+    
+    def _initialize_tools(self) -> None:
+        """Initialize tool apps after window is ready."""
         try:
+            from src.ui.massive_query_app import MassiveQueryApp
+            from src.ui.viewer_app import DataViewerApp
+            from src.ui.limit_monitor_app import LimitMonitorApp
+            
+            # Clear placeholder labels
+            for frame in self.tool_frames.values():
+                for widget in frame.winfo_children():
+                    widget.destroy()
+            
             self.tools = {
                 "massive_query": MassiveQueryApp(
                     self.tool_frames["massive_query"],
@@ -180,14 +201,14 @@ class SalesforceToolsSuite(ctk.CTk):
                     theme_name=self.config.theme,
                 ),
             }
+            
+            # Show first tool
+            self._switch_tool("massive_query")
+            logger.info("All tools initialized successfully")
+            
         except Exception as e:
             logger.exception(f"Tool initialization failed: {e}")
-            messagebox.showerror("Errore", f"Errore inizializzazione tool: {e}")
-            self.destroy()
-            return
-        
-        # Show first tool
-        self._switch_tool("massive_query")
+            messagebox.showerror("Errore", f"Errore inizializzazione tool: {str(e)}")
     
     def _create_nav_button(self, tool_id: str, label: str, tooltip: str) -> None:
         """Create navigation button."""
@@ -204,6 +225,9 @@ class SalesforceToolsSuite(ctk.CTk):
     
     def _switch_tool(self, tool_id: str) -> None:
         """Switch active tool."""
+        if tool_id not in self.tool_frames:
+            return
+            
         # Hide all frames
         for fid, frame in self.tool_frames.items():
             frame.pack_forget()
