@@ -226,7 +226,7 @@ class MassiveQueryApp:
             width=100,
         ).pack(side="right")
         
-        # Export formats
+        # Export formats - Use pack instead of grid
         options_card = ThemedFrame(right_col, theme=self.theme, card_style=True)
         options_card.pack(fill="x", pady=(0, 15))
         
@@ -242,9 +242,18 @@ class MassiveQueryApp:
         self.json_var = tk.BooleanVar(value=False)
         self.xlsx_var = tk.BooleanVar(value=False)
         
-        ctk.CTkCheckBox(options_card, text="CSV", variable=self.csv_var).grid(row=0, column=0, sticky="w", padx=12, pady=6)
-        ctk.CTkCheckBox(options_card, text="JSON", variable=self.json_var).grid(row=0, column=1, sticky="w", padx=12, pady=6)
-        ctk.CTkCheckBox(options_card, text="Excel", variable=self.xlsx_var).grid(row=1, column=0, sticky="w", padx=12, pady=6)
+        # Checkbox row 1
+        checkbox_row1 = ThemedFrame(options_card, theme=self.theme, card_style=False)
+        checkbox_row1.pack(anchor="w", padx=12, pady=(0, 3))
+        
+        ctk.CTkCheckBox(checkbox_row1, text="CSV", variable=self.csv_var).pack(side="left", padx=(0, 20))
+        ctk.CTkCheckBox(checkbox_row1, text="JSON", variable=self.json_var).pack(side="left")
+        
+        # Checkbox row 2
+        checkbox_row2 = ThemedFrame(options_card, theme=self.theme, card_style=False)
+        checkbox_row2.pack(anchor="w", padx=12, pady=(0, 12))
+        
+        ctk.CTkCheckBox(checkbox_row2, text="Excel", variable=self.xlsx_var).pack(side="left")
         
         # Progress & console
         console_card = ThemedFrame(main_frame, theme=self.theme, card_style=True)
