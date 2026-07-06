@@ -95,6 +95,7 @@ class MassiveQueryApp:
             top_bar,
             theme=self.theme,
             values=["Caricamento..."],
+            variable=self.alias_var,
         )
         self.alias_combo.pack(side="left", padx=(0, 10))
         self.alias_combo.configure(state="disabled")

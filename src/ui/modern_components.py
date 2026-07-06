@@ -249,9 +249,12 @@ class BadgeChip(ctk.CTkLabel):
 class LoadingSpinner(ctk.CTkFrame):
     """Lightweight animated loading indicator."""
 
-    def __init__(self, master, theme: Theme = DEFAULT_THEME, size: int = 16, **kwargs):
+    def __init__(self, master, theme: Theme = DEFAULT_THEME, size: int = 16, bg_color: Optional[str] = None, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
-        self._canvas = ctk.CTkCanvas(self, width=size, height=size, bg="transparent", highlightthickness=0)
+        # "transparent" is not a valid Tk color; use the theme's card background so the
+        # canvas blends with its most common parent container (a card frame).
+        canvas_bg = bg_color or theme.card_bg
+        self._canvas = ctk.CTkCanvas(self, width=size, height=size, bg=canvas_bg, highlightthickness=0)
         self._canvas.pack()
         self._theme = theme
         self._size = size
