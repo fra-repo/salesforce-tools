@@ -1,268 +1,282 @@
+"""Main Salesforce Tools Suite Application.
+
+Modular dashboard with embedded tools:
+- Massive Query Tool
+- Data Viewer
+- Platform Limits Monitor
+"""
+
 import tkinter as tk
+from tkinter import messagebox
+from pathlib import Path
+import logging
+import sys
+
 import customtkinter as ctk
 
-from massive_query_salesforce import ModernMassiveQueryApp
-from salesforce_viewer import SalesforceDataViewer
-from platform_limit import PlatformLimitsTool
+from src.logging_config import setup_logging
+from src.config import AppConfig
+from src.ui.theme import get_theme
+from src.ui.components import ThemedFrame, ThemedLabel, ThemedButton
+from src.ui.massive_query_app import MassiveQueryApp
+from src.ui.viewer_app import DataViewerApp
+from src.ui.limit_monitor_app import LimitMonitorApp
 
-PAGE_INFO = {
-    "Home": {
-        "title": "Salesforce Operations Suite",
-        "subtitle": "Passa tra estrazione massiva e consultazione dati senza aprire finestre separate.",
-        "accent": "#2563eb",
-    },
-    "Massive Query": {
-        "title": "Massive Query",
-        "subtitle": "Estrai in blocco i record da uno o più oggetti Salesforce.",
-        "accent": "#0ea5e9",
-    },
-    "Data Viewer": {
-        "title": "Data Viewer",
-        "subtitle": "Esplora e filtra i file CSV o JSON esportati.",
-        "accent": "#14b8a6",
-    },
-    "Limit Monitoring": {
-        "title": "Limit Monitoring",
-        "subtitle": "Monitora i limiti della piattaforma Salesforce.",
-        "accent": "#14b8a6",
-    }
-}
-
-SUBTOOL_THEME = {
-    "app_bg": "#f4f6fb",
-    "card_bg": "#ffffff",
-    "primary": "#2563eb",
-    "secondary": "#d9e2f1",
-    "text": "#10203a",
-    "subtle": "#516173",
-    "hover": "#1d4ed8",
-    "outer_padding": 18,
-    "shell_border": "#d9e2f1",
-    "shell_radius": 22,
-    "font_family": "Segoe UI",
-}
+# Setup logging
+logger = setup_logging()
+logger.info("Starting Salesforce Tools Suite v2.0")
 
 
-class SalesforceSuiteApp:
+class SalesforceToolsSuite(ctk.CTk):
+    """Main application window with embedded tools."""
+
     def __init__(self):
-        ctk.set_appearance_mode("Light")
-        ctk.set_default_color_theme("blue")
-
-        self.root = ctk.CTk()
-        self.root.title(PAGE_INFO["Home"]["title"])
-        self.root.geometry("1500x960")
-        self.root.minsize(1280, 840)
-        self.root.configure(fg_color="#f4f6fb")
-
-        self.root.grid_columnconfigure(1, weight=1)
-        self.root.grid_rowconfigure(0, weight=1)
-
-        self.current_page = "Home"
-        self.nav_buttons = {}
-
-        self._build_sidebar()
-        self._build_content()
-
-        self.show_page("Home")
+        """Initialize main application."""
+        super().__init__()
         
-
-    # ------------------------------------------------------------------
-    # Sidebar
-    # ------------------------------------------------------------------
-    def _build_sidebar(self):
-        self.sidebar = ctk.CTkFrame(
-            self.root, width=260, corner_radius=0, fg_color="#ffffff",
-            border_width=1, border_color="#d9e2f1",
+        # Load config
+        self.config = AppConfig.load()
+        self.theme = get_theme(self.config.theme)
+        
+        # Configure window
+        self.title("Salesforce Tools Suite v2.0")
+        self.geometry(f"{self.config.window_width}x{self.config.window_height}")
+        self.minsize(1200, 800)
+        
+        ctk.set_appearance_mode("Light" if self.config.theme == "light" else "Dark")
+        self.configure(fg_color=self.theme.app_bg)
+        
+        # Bind window close
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        
+        # Build UI
+        self._build_ui()
+        
+        logger.info("Main application initialized")
+    
+    def _build_ui(self) -> None:
+        """Build main user interface."""
+        # Main container with sidebar
+        main_container = ThemedFrame(self, theme=self.theme, card_style=False)
+        main_container.pack(fill="both", expand=True)
+        
+        # SIDEBAR
+        self.sidebar = ThemedFrame(
+            main_container,
+            theme=self.theme,
+            card_style=False,
         )
-        self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_propagate(False)
-        self.sidebar.grid_rowconfigure(4, weight=1)
-        self.sidebar.grid_columnconfigure(0, weight=1)
-
-        header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=22, pady=(24, 18))
-
-        ctk.CTkLabel(header, text="SF PRO SUITE", font=("Segoe UI", 22, "bold"), text_color="#10203a").pack(anchor="w")
-        ctk.CTkLabel(
-            header,
-            text="Estrazione e consultazione dati Salesforce.",
-            font=("Segoe UI", 12),
-            text_color="#516173",
-            wraplength=210,
-            justify="left",
-        ).pack(anchor="w", pady=(6, 0))
-
-        nav_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        nav_frame.grid(row=1, column=0, sticky="ew", padx=14)
-        nav_frame.grid_columnconfigure(0, weight=1)
-
-        for i, page_name in enumerate(PAGE_INFO):
-            self.nav_buttons[page_name] = self._make_nav_button(nav_frame, page_name, row=i)
-
-        footer = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        footer.grid(row=5, column=0, sticky="sew", padx=18, pady=18)
-        ctk.CTkLabel(
-            footer, text="v1.0", font=("Segoe UI", 10), text_color="#94a3b8",
-        ).pack(anchor="w")
-
-    def _make_nav_button(self, parent, page_name, row):
-        button = ctk.CTkButton(
-            parent,
-            text=page_name,
-            command=lambda: self.show_page(page_name),
-            height=46,
-            corner_radius=12,
-            fg_color="transparent",
-            hover_color="#edf4ff",
-            text_color="#10203a",
-            anchor="w",
-            font=("Segoe UI", 13, "bold"),
+        self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
+        self.sidebar.configure(fg_color=self.theme.secondary)
+        
+        # Logo area
+        logo_frame = ThemedFrame(self.sidebar, theme=self.theme, card_style=False)
+        logo_frame.pack(fill="x", padx=16, pady=(20, 30))
+        logo_frame.configure(fg_color=self.theme.secondary)
+        
+        ThemedLabel(
+            logo_frame,
+            "🚀",
+            theme=self.theme,
+            size=32,
+        ).pack()
+        
+        ThemedLabel(
+            logo_frame,
+            "Salesforce Tools",
+            theme=self.theme,
+            size=14,
+            bold=True,
+        ).pack(pady=(8, 0))
+        
+        ThemedLabel(
+            logo_frame,
+            "v2.0",
+            theme=self.theme,
+            size=9,
+            color=self.theme.subtle,
+        ).pack()
+        
+        # Divider
+        divider = tk.Frame(self.sidebar, bg=self.theme.shell_border, height=1)
+        divider.pack(fill="x", padx=16, pady=(0, 20))
+        
+        # Navigation buttons
+        self.nav_buttons = {}
+        tools = [
+            ("massive_query", "📤 Massive Query", "Estrai dati in bulk"),
+            ("viewer", "👁️ Visualizzatore", "Visualizza i dati estratti"),
+            ("limits", "📊 Platform Limits", "Monitora limiti Salesforce"),
+        ]
+        
+        for tool_id, label, tooltip in tools:
+            self._create_nav_button(tool_id, label, tooltip)
+        
+        # Spacer
+        spacer = tk.Frame(self.sidebar, fg_color="transparent")
+        spacer.pack(fill="both", expand=True)
+        
+        # Footer buttons
+        footer_frame = ThemedFrame(self.sidebar, theme=self.theme, card_style=False)
+        footer_frame.pack(fill="x", padx=12, pady=(20, 16))
+        footer_frame.configure(fg_color=self.theme.secondary)
+        
+        settings_btn = ThemedButton(
+            footer_frame,
+            "⚙️ Impostazioni",
+            command=self._show_settings,
+            theme=self.theme,
+            is_primary=False,
+            width=140,
         )
-        button.grid(row=row, column=0, sticky="ew", pady=4)
-        return button
-
-    # ------------------------------------------------------------------
-    # Main content area
-    # ------------------------------------------------------------------
-    def _build_content(self):
-        self.content = ctk.CTkFrame(self.root, corner_radius=0, fg_color="#f4f6fb")
-        self.content.grid(row=0, column=1, sticky="nsew", padx=(0, 18), pady=18)
-        self.content.grid_rowconfigure(1, weight=1)
-        self.content.grid_columnconfigure(0, weight=1)
-
-        self.hero = ctk.CTkFrame(self.content, corner_radius=24, fg_color="#ffffff", border_width=1, border_color="#d9e2f1")
-        self.hero.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 16))
-        self.hero.grid_columnconfigure(0, weight=1)
-
-        self.hero_title = ctk.CTkLabel(self.hero, text="", font=("Segoe UI", 26, "bold"), text_color="#10203a")
-        self.hero_title.grid(row=0, column=0, sticky="w", padx=24, pady=(20, 2))
-
-        self.hero_subtitle = ctk.CTkLabel(self.hero, text="", font=("Segoe UI", 13), text_color="#516173")
-        self.hero_subtitle.grid(row=1, column=0, sticky="w", padx=24, pady=(0, 20))
-
-        self.pages = {
-            "Home": ctk.CTkFrame(self.content, corner_radius=22, fg_color="#f4f6fb"),
-            "Massive Query": ctk.CTkFrame(self.content, corner_radius=22, fg_color="#f4f6fb"),
-            "Data Viewer": ctk.CTkFrame(self.content, corner_radius=22, fg_color="#f4f6fb"),
-            "Limit Monitoring": ctk.CTkFrame(self.content, corner_radius=22, fg_color="#f4f6fb"),
-        }
-        for page in self.pages.values():
-            page.grid(row=1, column=0, sticky="nsew")
-
-        self.page_shells = {}
-        for page_name in ("Massive Query", "Data Viewer", "Limit Monitoring"):
-            self.pages[page_name].grid_rowconfigure(0, weight=1)
-            self.pages[page_name].grid_columnconfigure(0, weight=1)
-            shell = ctk.CTkFrame(
-                self.pages[page_name],
-                corner_radius=SUBTOOL_THEME["shell_radius"],
-                fg_color=SUBTOOL_THEME["card_bg"],
-                border_width=1,
-                border_color=SUBTOOL_THEME["shell_border"],
+        settings_btn.pack(fill="x", pady=(0, 8))
+        
+        about_btn = ThemedButton(
+            footer_frame,
+            "ℹ️ Info",
+            command=self._show_about,
+            theme=self.theme,
+            is_primary=False,
+            width=140,
+        )
+        about_btn.pack(fill="x")
+        
+        # MAIN CONTENT AREA
+        self.content_frame = ThemedFrame(
+            main_container,
+            theme=self.theme,
+            card_style=False,
+        )
+        self.content_frame.pack(side="right", fill="both", expand=True, padx=0, pady=0)
+        
+        # Container for tool frames
+        self.tool_frames = {}
+        for tool_id, _, _ in tools:
+            frame = ThemedFrame(self.content_frame, theme=self.theme, card_style=False)
+            frame.pack(fill="both", expand=True)
+            frame.pack_forget()
+            self.tool_frames[tool_id] = frame
+        
+        # Initialize tools
+        try:
+            self.tools = {
+                "massive_query": MassiveQueryApp(
+                    self.tool_frames["massive_query"],
+                    ui_root=self,
+                    embedded=True,
+                    theme_name=self.config.theme,
+                ),
+                "viewer": DataViewerApp(
+                    self.tool_frames["viewer"],
+                    ui_root=self,
+                    embedded=True,
+                    theme_name=self.config.theme,
+                ),
+                "limits": LimitMonitorApp(
+                    self.tool_frames["limits"],
+                    ui_root=self,
+                    embedded=True,
+                    theme_name=self.config.theme,
+                ),
+            }
+        except Exception as e:
+            logger.exception(f"Tool initialization failed: {e}")
+            messagebox.showerror("Errore", f"Errore inizializzazione tool: {e}")
+            self.destroy()
+            return
+        
+        # Show first tool
+        self._switch_tool("massive_query")
+    
+    def _create_nav_button(self, tool_id: str, label: str, tooltip: str) -> None:
+        """Create navigation button."""
+        btn = ThemedButton(
+            self.sidebar,
+            label,
+            command=lambda: self._switch_tool(tool_id),
+            theme=self.theme,
+            is_primary=False,
+            width=140,
+        )
+        btn.pack(fill="x", padx=12, pady=6)
+        self.nav_buttons[tool_id] = btn
+    
+    def _switch_tool(self, tool_id: str) -> None:
+        """Switch active tool."""
+        # Hide all frames
+        for fid, frame in self.tool_frames.items():
+            frame.pack_forget()
+        
+        # Reset button styling
+        for bid, btn in self.nav_buttons.items():
+            btn.configure(
+                fg_color=self.theme.secondary,
+                text_color=self.theme.text,
             )
-            shell.grid(row=0, column=0, sticky="nsew")
-            shell.grid_rowconfigure(0, weight=1)
-            shell.grid_columnconfigure(0, weight=1)
-            self.page_shells[page_name] = shell
-
-        self._build_home(self.pages["Home"])
-        self.query_app = ModernMassiveQueryApp(
-            self.page_shells["Massive Query"],
-            ui_root=self.root,
-            embedded=True,
-            theme=SUBTOOL_THEME,
+        
+        # Show selected frame and highlight button
+        self.tool_frames[tool_id].pack(fill="both", expand=True)
+        self.nav_buttons[tool_id].configure(
+            fg_color=self.theme.primary,
+            text_color="#ffffff",
         )
-        self.viewer_app = SalesforceDataViewer(
-            self.page_shells["Data Viewer"],
-            ui_root=self.root,
-            embedded=True,
-            theme=SUBTOOL_THEME,
+        
+        logger.info(f"Switched to tool: {tool_id}")
+    
+    def _show_settings(self) -> None:
+        """Show settings dialog."""
+        messagebox.showinfo(
+            "Impostazioni",
+            f"""Configurazione attuale:
+
+• Chunk size: {self.config.chunk_size}
+• Page size: {self.config.page_size}
+• Export formats: {', '.join(self.config.export_formats)}
+• Theme: {self.config.theme}
+• Output dir: {self.config.default_output_dir}
+
+Modifica il file di configurazione per cambiare le impostazioni:
+{self.config.CONFIG_FILE}"""
         )
-        self.limit_monitoring_app = PlatformLimitsTool(
-            self.page_shells["Limit Monitoring"],
-            sf_connection=None,
+    
+    def _show_about(self) -> None:
+        """Show about dialog."""
+        messagebox.showinfo(
+            "Info",
+            """Salesforce Tools Suite v2.0
+
+Strumenti per gestire Salesforce:
+• Massive Query - Estrazione bulk di dati
+• Visualizzatore - Visualizzazione e filtro dati
+• Platform Limits - Monitoraggio limiti org
+
+Repository: https://github.com/fra-repo/salesforce-tools
+License: MIT
+
+Architettura modularizzata con:
+✓ Logica separata dall'UI
+✓ Error handling strutturato
+✓ Configurazione persistente
+✓ Logging centralizzato"""
         )
-        self.limit_monitoring_app.pack(fill="both", expand=True, padx=12, pady=12)
+    
+    def _on_close(self) -> None:
+        """Handle window close."""
+        self.config.save()
+        logger.info("Application closed")
+        self.destroy()
 
-    def _build_home(self, home):
-        home.grid_columnconfigure(0, weight=1)
-        home.grid_rowconfigure(0, weight=1)
 
-        card = ctk.CTkFrame(home, corner_radius=22, fg_color="#ffffff", border_width=1, border_color="#d9e2f1")
-        card.grid(row=0, column=0, sticky="nsew")
-        card.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(card, text="Cosa vuoi fare?", font=("Segoe UI", 20, "bold"), text_color="#10203a").grid(
-            row=0, column=0, sticky="w", padx=24, pady=(24, 16)
-        )
-
-        self._home_action(
-            card, row=1,
-            title="Massive Query",
-            desc="Estrai in blocco i record da uno o più oggetti Salesforce.",
-            accent="#0ea5e9",
-            target="Massive Query",
-        )
-        self._home_action(
-            card, row=2,
-            title="Data Viewer",
-            desc="Apri e filtra i file CSV o JSON già esportati.",
-            accent="#14b8a6",
-            target="Data Viewer",
-        )
-        self._home_action(
-            card, row=3,
-            title="Limit Monitoring",
-            desc="Monitora i limiti della piattaforma Salesforce.",
-            accent="#f59e0b",
-            target="Limit Monitoring",
-        )
-
-    def _home_action(self, parent, row, title, desc, accent, target):
-        item = ctk.CTkFrame(parent, corner_radius=16, fg_color="#f8fbff", border_width=1, border_color="#d9e2f1")
-        item.grid(row=row, column=0, sticky="ew", padx=24, pady=(0, 16))
-        item.grid_columnconfigure(0, weight=1)
-
-        text_col = ctk.CTkFrame(item, fg_color="transparent")
-        text_col.grid(row=0, column=0, sticky="w", padx=18, pady=16)
-        ctk.CTkLabel(text_col, text=title, font=("Segoe UI", 15, "bold"), text_color="#10203a").pack(anchor="w")
-        ctk.CTkLabel(text_col, text=desc, font=("Segoe UI", 12), text_color="#516173").pack(anchor="w", pady=(2, 0))
-
-        ctk.CTkButton(
-            item,
-            text="Apri",
-            width=110,
-            height=38,
-            corner_radius=12,
-            fg_color=accent,
-            hover_color=accent,
-            command=lambda: self.show_page(target),
-        ).grid(row=0, column=1, padx=18, pady=16)
-
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
-    def show_page(self, page_name):
-        self.current_page = page_name
-        info = PAGE_INFO[page_name]
-
-        for name, page in self.pages.items():
-            page.grid_remove()
-        self.pages[page_name].grid()
-
-        for name, button in self.nav_buttons.items():
-            if name == page_name:
-                button.configure(fg_color="#edf4ff", text_color=PAGE_INFO[name]["accent"])
-            else:
-                button.configure(fg_color="transparent", text_color="#10203a")
-
-        self.hero_title.configure(text=info["title"])
-        self.hero_subtitle.configure(text=info["subtitle"])
-        self.root.title(f"Salesforce Operations Suite - {info['title']}" if page_name != "Home" else info["title"])
-
-    def run(self):
-        self.root.mainloop()
+def main():
+    """Entry point."""
+    try:
+        app = SalesforceToolsSuite()
+        app.mainloop()
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
+        print(f"Errore fatale: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    SalesforceSuiteApp().run()
+    main()

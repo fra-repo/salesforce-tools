@@ -1,0 +1,2 @@
+customtkinter>=5.2.0
+openpyxl>=3.10.0
