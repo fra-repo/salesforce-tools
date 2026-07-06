@@ -27,7 +27,7 @@ from src.ui.limit_monitor_app import LimitMonitorApp
 logger = setup_logging()
 logger.info("Starting Salesforce Tools Suite v2.0")
 DEFAULT_THEME_NAME = "dark"
-# Small delay keeps the transition feeling smooth and avoids frame flicker while repacking.
+# Empirically tuned delay: avoids frame flicker during repacking while keeping switching responsive.
 TOOL_SWITCH_DELAY_MS = 90
 
 
@@ -205,7 +205,7 @@ class SalesforceToolsSuite(ctk.CTk):
         query = self.search_var.get().strip().lower()
         if not query:
             return
-        for tool_id, _, label, _ in self.tools:
+        for tool_id, icon, label, tooltip in self.tools:
             if query in label.lower() or query in tool_id:
                 self._switch_tool(tool_id)
                 return

@@ -161,7 +161,7 @@ THEMES: Dict[str, ModernTheme] = {
 
 def get_theme(name: str = "dark") -> ModernTheme:
     """Return theme by name."""
-    key = (name or "dark").strip().lower()
+    key = name.strip().lower() if isinstance(name, str) and name.strip() else "dark"
     if key not in THEMES:
         raise ValueError(f"Theme '{name}' not found. Available: {sorted(THEMES.keys())}")
     return THEMES[key]

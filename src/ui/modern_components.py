@@ -3,6 +3,8 @@
 from typing import Callable, Optional, Sequence
 import tkinter as tk
 from tkinter import ttk
+from itertools import count
+import logging
 
 import customtkinter as ctk
 
@@ -12,6 +14,7 @@ from .styles import button_style, card_style as card_tokens, input_style
 
 DEFAULT_THEME = get_theme("dark")
 Theme = ModernTheme
+logger = logging.getLogger(__name__)
 
 
 class ModernFrame(ctk.CTkFrame):
@@ -152,13 +155,12 @@ class ModernToggle(ctk.CTkSwitch):
 
 class ModernTabs(ttk.Notebook):
     """Tabs with modern underline-like style."""
-    _style_counter = 0
+    _style_counter = count(1)
 
     def __init__(self, master, theme: Theme = DEFAULT_THEME, **kwargs):
         super().__init__(master, **kwargs)
         style = ttk.Style(master)
-        ModernTabs._style_counter += 1
-        style_name = f"ModernNotebook.{ModernTabs._style_counter}"
+        style_name = f"ModernNotebook.{next(ModernTabs._style_counter)}"
         style.theme_use(style.theme_use())
         style.configure(
             f"{style_name}.TNotebook",
@@ -246,7 +248,7 @@ class LoadingSpinner(ctk.CTkFrame):
 
     def __init__(self, master, theme: Theme = DEFAULT_THEME, size: int = 16, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
-        self._canvas = ctk.CTkCanvas(self, width=size, height=size, bg=theme.app_bg, highlightthickness=0)
+        self._canvas = ctk.CTkCanvas(self, width=size, height=size, bg="transparent", highlightthickness=0)
         self._canvas.pack()
         self._theme = theme
         self._size = size
@@ -303,6 +305,7 @@ class ProgressIndicator(ctk.CTkFrame):
         try:
             clamped = max(0.0, min(1.0, float(value)))
         except (TypeError, ValueError):
+            logger.warning("Invalid progress value %r; defaulting to 0.0", value)
             clamped = 0.0
         self.progress_bar.set(clamped)
         if clamped >= 0.85:
