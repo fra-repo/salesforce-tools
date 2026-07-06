@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Dict
 import os
 
+DEFAULT_FONT_FAMILY = "Segoe UI" if os.name == "nt" else "Helvetica"
+
 
 @dataclass(frozen=True)
 class ModernTheme:
@@ -27,7 +29,7 @@ class ModernTheme:
     error: str
     shadow: str
     glass_tint: str
-    font_family: str = "Segoe UI" if os.name == "nt" else "Helvetica"
+    font_family: str = DEFAULT_FONT_FAMILY
     radius_lg: int = 24
     radius_md: int = 20
     radius_sm: int = 14

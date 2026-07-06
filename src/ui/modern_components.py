@@ -152,11 +152,13 @@ class ModernToggle(ctk.CTkSwitch):
 
 class ModernTabs(ttk.Notebook):
     """Tabs with modern underline-like style."""
+    _style_counter = 0
 
     def __init__(self, master, theme: Theme = DEFAULT_THEME, **kwargs):
         super().__init__(master, **kwargs)
         style = ttk.Style(master)
-        style_name = f"ModernNotebook.{id(self)}"
+        ModernTabs._style_counter += 1
+        style_name = f"ModernNotebook.{ModernTabs._style_counter}"
         style.theme_use(style.theme_use())
         style.configure(
             f"{style_name}.TNotebook",
@@ -298,7 +300,10 @@ class ProgressIndicator(ctk.CTkFrame):
         self.eta_label.pack(side="right")
 
     def set_progress(self, value: float) -> None:
-        clamped = max(0.0, min(1.0, float(value)))
+        try:
+            clamped = max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            clamped = 0.0
         self.progress_bar.set(clamped)
         if clamped >= 0.85:
             self.progress_bar.configure(progress_color=self._theme.success)

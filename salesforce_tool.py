@@ -26,6 +26,8 @@ from src.ui.limit_monitor_app import LimitMonitorApp
 
 logger = setup_logging()
 logger.info("Starting Salesforce Tools Suite v2.0")
+DEFAULT_THEME_NAME = "dark"
+# Small delay keeps the transition feeling smooth and avoids frame flicker while repacking.
 TOOL_SWITCH_DELAY_MS = 90
 
 
@@ -37,7 +39,7 @@ class SalesforceToolsSuite(ctk.CTk):
 
         self.config = AppConfig.load()
         if self.config.theme not in THEMES:
-            self.config.theme = "dark"
+            self.config.theme = DEFAULT_THEME_NAME
         self.theme = get_theme(self.config.theme)
         self.sidebar_collapsed = False
         self.current_tool = "massive_query"
@@ -105,7 +107,7 @@ class SalesforceToolsSuite(ctk.CTk):
         footer_frame.configure(fg_color=self.theme.sidebar_bg)
 
         selectable_themes = [name for name in THEMES if name != "embedded"]
-        self.theme_var = tk.StringVar(value=self.config.theme if self.config.theme in selectable_themes else "dark")
+        self.theme_var = tk.StringVar(value=self.config.theme if self.config.theme in selectable_themes else DEFAULT_THEME_NAME)
         self.theme_combo = ThemedComboBox(
             footer_frame,
             theme=self.theme,
