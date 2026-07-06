@@ -105,7 +105,7 @@ sf org list
 
 ---
 
-## 📖 Configurazione
+## 📝 Configurazione
 
 File config: `~/.salesforce-tools/config.json`
 
@@ -227,7 +227,7 @@ class TestExtractor(unittest.TestCase):
 
 ---
 
-## 📊 Tema & Customizzazione
+## 🎨 Tema & Customizzazione
 
 Tema centralizzato (src/ui/theme.py):
 
