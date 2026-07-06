@@ -61,10 +61,13 @@ class ModernButton(ctk.CTkButton):
         command: Callable,
         theme: Theme = DEFAULT_THEME,
         is_primary: bool = True,
-        width: Optional[int] = None,
+        width: Optional[int] = 80,
         **kwargs,
     ):
         style = button_style(theme, is_primary=is_primary)
+        # Ensure width is always a valid integer, not None
+        if width is None:
+            width = 80
         super().__init__(
             master,
             text=text,
