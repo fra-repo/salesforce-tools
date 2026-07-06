@@ -1,0 +1,22 @@
+# Salesforce Tools
+
+*.pyc
+__pycache__/
+*.egg-info/
+.env
+.vscode/
+.idea/
+*.log
+logs/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Salesforce
+.sf/
+.sfdx/
+
+# Output
+salesforce_extracts/
