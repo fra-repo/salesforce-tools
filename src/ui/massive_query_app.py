@@ -403,6 +403,7 @@ class MassiveQueryApp:
     
     def _run_extraction(self, org: str, soql: str, bind_values: List[str]) -> None:
         """Execute extraction in worker thread."""
+        error_msg = None
         try:
             org_alias = org.split(" ")[0]
             self._log(f"Inizio estrazione da {org_alias}")
@@ -460,16 +461,18 @@ class MassiveQueryApp:
                 self._log(f"✅ Esportato XLSX")
             
             self._log(f"\n🎉 Completato! {total_records} record estratti")
-            messagebox.showinfo("Completato", f"Estrazione completata\n{total_records} record")
+            self.root.after(0, lambda: messagebox.showinfo("Completato", f"Estrazione completata\n{total_records} record"))
         
         except SalesforceError as e:
+            error_msg = str(e)
             logger.error(f"Salesforce error: {e}")
             self._log(f"❌ Errore Salesforce: {e}")
-            self.root.after(0, lambda: messagebox.showerror("Errore", str(e)))
+            self.root.after(0, lambda msg=error_msg: messagebox.showerror("Errore", msg))
         except Exception as e:
+            error_msg = str(e)
             logger.exception(f"Extraction failed: {e}")
             self._log(f"❌ Errore: {e}")
-            self.root.after(0, lambda: messagebox.showerror("Errore", str(e)))
+            self.root.after(0, lambda msg=error_msg: messagebox.showerror("Errore", msg))
         finally:
             self.root.after(0, lambda: [
                 self.run_btn.configure(state="normal"),

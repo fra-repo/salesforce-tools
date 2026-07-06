@@ -1,11 +1,12 @@
-"""Refactored Platform Limits Monitor App."""
+"""Platform Limits Monitor Tool."""
 
 import tkinter as tk
-from typing import List, Dict, Any, Optional
+from pathlib import Path
+import threading
 import logging
 
 from ..core.sf_cli import SalesforceCliManager
-from ..core.exceptions import OrgNotFound
+from ..core.exceptions import SalesforceError
 from ..ui.theme import get_theme, Theme
 from ..ui.components import (
     ThemedButton,
@@ -13,15 +14,14 @@ from ..ui.components import (
     ThemedFrame,
     ThemedComboBox,
     BadgeChip,
-    ModernToggle,
 )
 import customtkinter as ctk
 
 logger = logging.getLogger(__name__)
 
 
-class LimitMonitorApp(ctk.CTkScrollableFrame):
-    """Monitor Salesforce platform limits."""
+class LimitMonitorApp:
+    """Platform Limits Monitor."""
 
     def __init__(
         self,
@@ -30,14 +30,16 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
         embedded: bool = False,
         theme_name: str = "light",
     ):
-        """Initialize limit monitor.
+        """Initialize app.
         
         Args:
             master: Parent widget
-            ui_root: Root window
+            ui_root: Root window (for tk.after)
             embedded: If True, optimize for embedding
-            theme_name: Theme name
+            theme_name: Theme name ('light', 'dark', 'embedded')
         """
+        self.container = master
+        self.root = ui_root or master
         self.embedded = embedded
         self.theme = get_theme("embedded" if embedded else theme_name)
 
@@ -63,78 +65,91 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
 
         logger.info("LimitMonitorApp initialized")
     
-    def _build_ui(self) -> None:
-        """Build user interface."""
-        # Title
+    def _build_error_ui(self, error_msg: str) -> None:
+        """Build error UI when initialization fails."""
+        frame = ThemedFrame(self.container, theme=self.theme, card_style=False)
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
         ThemedLabel(
-            self,
-            "Salesforce Platform Limits",
+            frame,
+            "❌ Errore Inizializzazione",
             theme=self.theme,
-            size=20,
+            size=14,
             bold=True,
-        ).pack(pady=(10, 8))
-        BadgeChip(self, text="Live Monitor", theme=self.theme, color=self.theme.accent).pack(pady=(0, 8))
-        
-        # Toolbar
-        toolbar = ThemedFrame(self, theme=self.theme, card_style=False)
-        toolbar.pack(fill="x", padx=12, pady=(0, 10))
+            color=self.theme.error,
+        ).pack(pady=20)
         
         ThemedLabel(
-            toolbar,
-            "Org",
+            frame,
+            error_msg,
             theme=self.theme,
             size=10,
-            bold=True,
-            color=self.theme.subtle,
-        ).pack(side="left", padx=(0, 8))
+            color=self.theme.muted,
+        ).pack(pady=10)
+    
+    def _build_ui(self) -> None:
+        """Build user interface."""
+        main_frame = ThemedFrame(self.container, theme=self.theme, card_style=False)
+        main_frame.pack(fill="both", expand=True, padx=self.theme.outer_padding, pady=self.theme.outer_padding)
         
-        self.org_var = tk.StringVar()
-        self.org_combo = ThemedComboBox(
-            toolbar,
+        # TOP BAR
+        top_bar = ThemedFrame(main_frame, theme=self.theme, card_style=False)
+        top_bar.pack(fill="x", pady=(0, 10))
+        
+        ThemedLabel(top_bar, "Salesforce Org:", theme=self.theme, size=10, bold=True).pack(side="left", padx=(0, 10))
+        BadgeChip(top_bar, text="Platform Limits", theme=self.theme).pack(side="left", padx=(0, 10))
+        
+        self.alias_var = tk.StringVar()
+        self.alias_combo = ThemedComboBox(
+            top_bar,
             theme=self.theme,
             values=["Caricamento..."],
         )
-        self.org_combo.pack(side="left", padx=(0, 8))
+        self.alias_combo.pack(side="left", padx=(0, 10))
+        self.alias_combo.configure(state="disabled")
         
         self.refresh_btn = ThemedButton(
-            toolbar,
-            "Aggiorna",
+            top_bar,
+            "🔄 Aggiorna",
             command=self._refresh_orgs,
             theme=self.theme,
             is_primary=False,
         )
-        self.refresh_btn.pack(side="left", padx=(0, 8))
+        self.refresh_btn.pack(side="left", padx=(0, 10))
         
-        self.load_btn = ThemedButton(
-            toolbar,
-            "Carica limiti",
-            command=self._load_limits,
+        self.check_limits_btn = ThemedButton(
+            top_bar,
+            "📊 Verifica Limiti",
+            command=self._check_limits,
             theme=self.theme,
             is_primary=True,
         )
-        self.load_btn.pack(side="left")
-        self.auto_refresh_var = tk.BooleanVar(value=False)
-        self.auto_refresh_toggle = ModernToggle(
-            toolbar,
-            text="Auto refresh",
-            theme=self.theme,
-            variable=self.auto_refresh_var,
-        )
-        self.auto_refresh_toggle.pack(side="right")
+        self.check_limits_btn.pack(side="right")
         
-        # Status label
-        self.status_label = ThemedLabel(
-            self,
-            "Seleziona una org...",
-            theme=self.theme,
-            size=11,
-            color=self.theme.subtle,
-        )
-        self.status_label.pack(anchor="w", padx=12, pady=(0, 10))
+        # CONTENT AREA
+        content_card = ThemedFrame(main_frame, theme=self.theme, card_style=True)
+        content_card.pack(fill="both", expand=True)
         
-        # Container for limit cards
-        self.container = ThemedFrame(self, theme=self.theme, card_style=False)
-        self.container.pack(fill="both", expand=True, padx=4, pady=4)
+        ThemedLabel(
+            content_card,
+            "Limiti Piattaforma",
+            theme=self.theme,
+            size=12,
+            bold=True,
+        ).pack(anchor="w", padx=12, pady=(12, 6))
+        
+        self.limits_text = ctk.CTkTextbox(
+            content_card,
+            wrap="word",
+            font=("Consolas", 10),
+            border_width=1,
+            border_color=self.theme.border,
+            fg_color=self.theme.input_bg,
+            text_color=self.theme.text,
+        )
+        self.limits_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.limits_text.insert("1.0", "Seleziona un org e clicca 'Verifica Limiti' per visualizzare i dati...")
+        self.limits_text.configure(state="disabled")
     
     def _load_orgs_async(self) -> None:
         """Load orgs in background."""
@@ -170,165 +185,60 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
         self._load_orgs_async()
         # Button is re-enabled by _update_org_combo once the background thread finishes
     
-    def _load_limits(self) -> None:
-        """Load and display limits for selected org."""
-        org = self.org_var.get().strip()
-        if not org or org == "Nessuna org trovata":
-            self.status_label.configure(text="Nessuna org disponibile")
+    def _check_limits(self) -> None:
+        """Check platform limits."""
+        org = self.alias_var.get().strip()
+        if not org:
+            self._safe_log("❌ Seleziona un org")
             return
         
-        org_alias = org.split(" (")[0].strip()
-        self.status_label.configure(text=f"Caricamento limiti per {org_alias}...")
-        
-        import threading
+        self._safe_log(f"\n⏳ Verifica limiti per {org}...")
         threading.Thread(
-            target=self._fetch_and_render_limits,
-            args=(org_alias,),
+            target=self._fetch_limits,
+            args=(org,),
             daemon=True
         ).start()
     
-    def _fetch_and_render_limits(self, org_alias: str) -> None:
-        """Fetch limits from CLI and render."""
+    def _fetch_limits(self, org: str) -> None:
+        """Fetch limits from Salesforce."""
         try:
-            # Execute CLI command
+            org_alias = org.split(" ")[0]
+            
+            # Run sf org limits command
             result = self.sf_cli._run_command(
                 ["org", "list", "limits", "--target-org", org_alias, "--json"]
             )
             
-            if not result["success"]:
-                raise Exception(result.get("stderr", "Unknown error"))
-            
-            import json
-            payload = json.loads(result["stdout"])
-            limits = payload.get("result", {})
-            
-            # Render limits
-            self.root.after(0, lambda: self._render_limits(limits))
-            self.root.after(0, lambda: self.status_label.configure(
-                text=f"Limiti caricati per {org_alias}"
-            ))
+            if result["success"]:
+                import json
+                data = json.loads(result["stdout"])
+                limits = data.get("result", [])
+                
+                # Clear and show limits
+                self.root.after(0, self._display_limits, limits)
+            else:
+                self._log(f"❌ Errore: {result.get('stderr', 'Unknown error')}")
         
         except Exception as e:
-            logger.error(f"Limits fetch failed: {e}")
-            self.root.after(0, lambda: self.status_label.configure(
-                text=f"Errore: {e}"
-            ))
+            logger.exception(f"Limits fetch failed: {e}")
+            self._log(f"❌ Errore: {e}")
     
-    def _render_limits(self, limits: Dict[str, Any]) -> None:
-        """Render limit cards."""
-        # Clear container
-        for widget in self.container.winfo_children():
-            widget.destroy()
+    def _display_limits(self, limits) -> None:
+        """Display limits in UI."""
+        self.limits_text.configure(state="normal")
+        self.limits_text.delete("1.0", "end")
         
-        if isinstance(limits, dict):
-            items = []
-            for title, payload in limits.items():
-                if not isinstance(payload, dict):
-                    continue
-                
-                remaining = payload.get("Remaining")
-                max_val = payload.get("Max")
-                
-                if remaining is None or max_val is None:
-                    continue
-                
-                items.append((title.replace("_", " "), remaining, max_val))
+        if not limits:
+            self.limits_text.insert("1.0", "Nessun limite trovato")
         else:
-            items = []
+            for limit in limits:
+                name = limit.get("name", "N/A")
+                used = limit.get("used", 0)
+                total = limit.get("total", 0)
+                percentage = (used / total * 100) if total > 0 else 0
+                
+                line = f"{name:30} | {used:6} / {total:6} ({percentage:5.1f}%)\n"
+                self.limits_text.insert("end", line)
         
-        if not items:
-            ThemedLabel(
-                self.container,
-                "Nessun limite disponibile",
-                theme=self.theme,
-                size=11,
-                color=self.theme.subtle,
-            ).pack(pady=20)
-            return
-        
-        # Render cards
-        for label, remaining, max_val in items:
-            self._create_limit_card(label, remaining, max_val)
-    
-    def _create_limit_card(
-        self, title: str, remaining: int, max_val: int
-    ) -> None:
-        """Create and render a limit gauge card."""
-        max_val = max_val or 1
-        remaining = remaining if remaining is not None else 0
-        used = max(max_val - remaining, 0)
-        ratio = (used / max_val) if max_val else 0
-        percent = ratio * 100
-        
-        # Determine color
-        if ratio >= 0.9:
-            fill_color = "#dc2626"
-        elif ratio >= 0.7:
-            fill_color = "#f97316"
-        else:
-            fill_color = self.theme.primary
-        
-        # Card frame
-        card = ThemedFrame(self.container, theme=self.theme, card_style=True)
-        card.pack(fill="x", pady=6, padx=6)
-        
-        body = ThemedFrame(card, theme=self.theme, card_style=False)
-        body.pack(fill="x", padx=14, pady=14)
-        
-        # Gauge (semicircle arc using Canvas)
-        gauge_canvas = ctk.CTkCanvas(
-            body,
-            width=120,
-            height=70,
-            bg=self.theme.card_bg,
-            highlightthickness=0,
-        )
-        gauge_canvas.pack(side="left", padx=(0, 16))
-        
-        # Background arc
-        gauge_canvas.create_arc(
-            10, 15, 110, 115,
-            start=0, extent=180,
-            outline=self.theme.secondary,
-            width=12,
-            style="arc"
-        )
-        
-        # Filled arc
-        if ratio > 0:
-            extent_angle = -180 * ratio
-            gauge_canvas.create_arc(
-                10, 15, 110, 115,
-                start=180, extent=extent_angle,
-                outline=fill_color,
-                width=12,
-                style="arc"
-            )
-        
-        # Percentage text
-        gauge_canvas.create_text(
-            60, 55,
-            text=f"{percent:.0f}%",
-            font=(self.theme.font_family, 13, "bold"),
-            fill=fill_color
-        )
-        
-        # Info column
-        info_col = ThemedFrame(body, theme=self.theme, card_style=False)
-        info_col.pack(side="left", fill="both", expand=True)
-        
-        ThemedLabel(
-            info_col,
-            title,
-            theme=self.theme,
-            size=14,
-            bold=True,
-        ).pack(anchor="w", pady=(2, 4))
-        
-        ThemedLabel(
-            info_col,
-            f"{remaining:,} su {max_val:,}",
-            theme=self.theme,
-            size=12,
-            color=self.theme.subtle,
-        ).pack(anchor="w")
+        self.limits_text.configure(state="disabled")
+        self._log(f"✅ Limiti caricati")
