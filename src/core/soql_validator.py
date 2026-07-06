@@ -1,160 +1,78 @@
-"""SOQL query validation and sanitization.
+"""Salesforce SOQL query validator and sanitizer.
 
-This module provides validators for SOQL queries to ensure safety,
-correctness, and adherence to Salesforce limits.
+Validation and sanitization utilities for SOQL queries.
 """
 
 import re
-from typing import List, Tuple
+from typing import List
 from .exceptions import ValidationError, QueryLimitExceeded
 
 
 class SOQLValidator:
-    """Validates SOQL queries for correctness and safety.
+    """Validates SOQL queries."""
 
-    Checks:
-    - Required clauses (SELECT, FROM)
-    - Dangerous operations (DELETE, DROP)
-    - Query size limits
-    - Bind variable placeholders
-    """
-
-    # Dangerous keywords that should not appear in queries
-    DANGEROUS_KEYWORDS = {"DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE"}
-
-    # SOQL size limit
-    MAX_SOQL_LENGTH = 18000
+    # SOQL query limits
+    MAX_QUERY_LENGTH = 18000  # Salesforce limit
+    MAX_BIND_VALUES = 2000
+    MIN_QUERY_LENGTH = 20
 
     @staticmethod
-    def validate_soql(soql: str, check_size: bool = True) -> Tuple[bool, str]:
-        """Validate SOQL query syntax and safety.
+    def validate_soql(soql: str) -> None:
+        """Validate SOQL query format.
 
         Args:
             soql: SOQL query string
-            check_size: If True, validate against size limit
-
-        Returns:
-            Tuple of (is_valid, error_message)
 
         Raises:
-            ValidationError: If validation fails
+            ValidationError: If query is invalid
+            QueryLimitExceeded: If query exceeds limits
         """
-        if not soql or not soql.strip():
-            raise ValidationError("soql", "Query SOQL non può essere vuota")
+        if not soql or len(soql.strip()) < SOQLValidator.MIN_QUERY_LENGTH:
+            raise ValidationError("Query SOQL troppo corta")
 
-        soql_upper = soql.upper()
+        soql_upper = soql.upper().strip()
+        if not soql_upper.startswith("SELECT"):
+            raise ValidationError("Query deve iniziare con SELECT")
 
-        # Check for required clauses
-        if "SELECT" not in soql_upper:
-            raise ValidationError(
-                "soql", "Query SOQL deve contenere la clausola SELECT"
+        if len(soql) > SOQLValidator.MAX_QUERY_LENGTH:
+            raise QueryLimitExceeded(
+                f"Query supera il limite di {SOQLValidator.MAX_QUERY_LENGTH} caratteri. "
+                f"Lunghezza attuale: {len(soql)}"
             )
-
-        if "FROM" not in soql_upper:
-            raise ValidationError(
-                "soql", "Query SOQL deve contenere la clausola FROM"
-            )
-
-        # Check for dangerous keywords
-        for keyword in SOQLValidator.DANGEROUS_KEYWORDS:
-            if keyword in soql_upper:
-                raise ValidationError(
-                    "soql",
-                    f"Query SOQL non può contenere '{keyword}'. Sono supportate solo query SELECT.",
-                )
-
-        # Check query size
-        if check_size and len(soql) > SOQLValidator.MAX_SOQL_LENGTH:
-            raise QueryLimitExceeded(len(soql), SOQLValidator.MAX_SOQL_LENGTH)
-
-        return True, ""
-
-    @staticmethod
-    def validate_bind_values(bind_values: List[str]) -> Tuple[bool, str]:
-        """Validate bind values list.
-
-        Args:
-            bind_values: List of bind value strings
-
-        Returns:
-            Tuple of (is_valid, error_message)
-
-        Raises:
-            ValidationError: If validation fails
-        """
-        if not bind_values:
-            raise ValidationError(
-                "bind_values", "Lista valori di bind non può essere vuota"
-            )
-
-        if not isinstance(bind_values, list):
-            raise ValidationError(
-                "bind_values", "Valori di bind devono essere una lista"
-            )
-
-        if len(bind_values) > 10000:
-            raise ValidationError(
-                "bind_values",
-                f"Troppi valori di bind ({len(bind_values)}). Massimo 10000.",
-            )
-
-        return True, ""
-
-    @staticmethod
-    def validate_chunk_size(chunk_size: int) -> Tuple[bool, str]:
-        """Validate chunk size for bulk operations.
-
-        Args:
-            chunk_size: Number of records per chunk
-
-        Returns:
-            Tuple of (is_valid, error_message)
-
-        Raises:
-            ValidationError: If validation fails
-        """
-        if chunk_size <= 0:
-            raise ValidationError(
-                "chunk_size", "Dimensione chunk deve essere > 0"
-            )
-
-        if chunk_size > 2000:
-            raise ValidationError(
-                "chunk_size",
-                f"Dimensione chunk troppo grande ({chunk_size}). Massimo 2000.",
-            )
-
-        return True, ""
 
     @staticmethod
     def check_bind_values_in_query(soql: str) -> bool:
-        """Check if query contains bind value placeholder.
+        """Check if query uses bind values.
 
         Args:
             soql: SOQL query string
 
         Returns:
-            True if query contains ':bind_values' placeholder
-
-        Raises:
-            ValidationError: If placeholder is missing
+            True if query contains bind variables (e.g., :var_name)
         """
-        if ":bind_values" not in soql and "(:bind_values)" not in soql:
-            raise ValidationError(
-                "soql",
-                "Query SOQL deve contenere il placeholder ':bind_values' o '(:bind_values)' dove inserire i filtri.",
-            )
-        return True
+        return ":" in soql
+
+    @staticmethod
+    def extract_bind_variable_names(soql: str) -> List[str]:
+        """Extract bind variable names from SOQL query.
+
+        Args:
+            soql: SOQL query string
+
+        Returns:
+            List of bind variable names
+        """
+        pattern = r":(\w+)"
+        matches = re.findall(pattern, soql)
+        return list(set(matches))  # Remove duplicates
 
 
 class SOQLSanitizer:
-    """Sanitizes and escapes SOQL strings for safe execution."""
+    """Sanitizes input for safe SOQL usage."""
 
     @staticmethod
     def escape_string(value: str) -> str:
-        """Escape string for SOQL execution.
-
-        Handles single quotes by escaping with backslash.
+        """Escape string for SOQL.
 
         Args:
             value: String to escape
@@ -162,53 +80,38 @@ class SOQLSanitizer:
         Returns:
             Escaped string safe for SOQL
         """
-        if not isinstance(value, str):
-            value = str(value)
-        # Escape single quotes
-        return value.replace("'", "\\")
+        # Escape single quotes by doubling them
+        escaped = value.replace("'", "''")
+        return escaped
 
     @staticmethod
-    def format_bind_value(value: str) -> str:
-        """Format a bind value for inclusion in SOQL query.
+    def format_bind_values_for_query(values: List[str]) -> dict:
+        """Format bind values for SOQL query.
 
         Args:
-            value: Raw value string
+            values: List of bind values
 
         Returns:
-            Formatted value with quotes and escaping
+            Dict suitable for SOQL query execution
         """
-        escaped = SOQLSanitizer.escape_string(value)
-        return f"'{escaped}'"
+        if len(values) > SOQLValidator.MAX_BIND_VALUES:
+            raise ValidationError(
+                f"Troppi bind values: {len(values)}. Max: {SOQLValidator.MAX_BIND_VALUES}"
+            )
+
+        return {"bind_values": values}
 
     @staticmethod
-    def format_bind_values_for_query(values: List[str]) -> str:
-        """Format list of bind values for SOQL IN clause.
+    def sanitize_identifier(identifier: str) -> str:
+        """Sanitize Salesforce identifier (field/object names).
 
         Args:
-            values: List of values
+            identifier: Identifier to sanitize
 
         Returns:
-            Formatted string like ('val1', 'val2', ...)
+            Sanitized identifier
         """
-        formatted = [SOQLSanitizer.format_bind_value(v) for v in values]
-        return "(" + ",".join(formatted) + ")"
-
-    @staticmethod
-    def clean_metadata(record: any) -> any:
-        """Remove Salesforce metadata fields from record.
-
-        Args:
-            record: Record dict or nested structure
-
-        Returns:
-            Cleaned record without 'attributes' fields
-        """
-        if isinstance(record, dict):
-            return {
-                k: SOQLSanitizer.clean_metadata(v)
-                for k, v in record.items()
-                if k != "attributes"
-            }
-        elif isinstance(record, list):
-            return [SOQLSanitizer.clean_metadata(item) for item in record]
-        return record
+        # Only allow alphanumeric, underscore, dot
+        if not re.match(r"^[a-zA-Z0-9_.]*$", identifier):
+            raise ValidationError(f"Invalid identifier: {identifier}")
+        return identifier
