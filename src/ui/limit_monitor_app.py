@@ -105,6 +105,8 @@ class LimitMonitorApp:
         )
         self.alias_combo.pack(side="left", padx=(0, 10))
         self.alias_combo.configure(state="disabled")
+        # Bind combobox selection
+        self.alias_combo.bind("<<ComboboxSelected>>", lambda e: self.alias_var.set(self.alias_combo.get()))
         
         self.refresh_btn = ThemedButton(
             top_bar,
@@ -179,6 +181,7 @@ class LimitMonitorApp:
         self.alias_combo.configure(values=aliases, state="readonly")
         if aliases:
             self.alias_combo.set(aliases[0])
+            self.alias_var.set(aliases[0])
         self.refresh_btn.configure(state="normal")
     
     def _refresh_orgs(self) -> None:
