@@ -102,11 +102,10 @@ class LimitMonitorApp:
             top_bar,
             theme=self.theme,
             values=["Caricamento..."],
+            command=self._on_org_selected,
         )
         self.alias_combo.pack(side="left", padx=(0, 10))
         self.alias_combo.configure(state="disabled")
-        # Bind combobox selection
-        self.alias_combo.bind("<<ComboboxSelected>>", lambda e: self.alias_var.set(self.alias_combo.get()))
         
         self.refresh_btn = ThemedButton(
             top_bar,
@@ -150,6 +149,12 @@ class LimitMonitorApp:
         self.limits_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
         self.limits_text.insert("1.0", "Seleziona un org e clicca 'Verifica Limiti' per visualizzare i dati...")
         self.limits_text.configure(state="disabled")
+    
+    def _on_org_selected(self) -> None:
+        """Handle org selection from combobox."""
+        selected = self.alias_combo.get()
+        self.alias_var.set(selected)
+        logger.debug(f"Org selected: {selected}")
     
     def _log(self, msg: str) -> None:
         """Thread-safe logging to UI."""
@@ -208,6 +213,7 @@ class LimitMonitorApp:
         """Fetch limits from Salesforce."""
         try:
             org_alias = org.split(" ")[0]
+            logger.info(f"Fetching limits for org: {org_alias}")
             
             # Run sf org limits command
             result = self.sf_cli._run_command(
