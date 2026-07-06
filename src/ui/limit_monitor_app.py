@@ -23,8 +23,8 @@ import customtkinter as ctk
 logger = logging.getLogger(__name__)
 
 
-class GaugeWidget(ctk.CTkFrame):
-    """Circular gauge widget for displaying limit usage."""
+class SemiGaugeWidget(ctk.CTkFrame):
+    """Minimal semicircular gauge widget for displaying limit usage."""
     
     def __init__(self, master, name: str, used: int, total: int, theme, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
@@ -34,43 +34,45 @@ class GaugeWidget(ctk.CTkFrame):
         self.total = total
         self.percentage = (used / total * 100) if total > 0 else 0
         
-        # Create canvas for gauge
+        # Top section: name + percentage
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 6))
+        
+        name_label = ctk.CTkLabel(
+            header_frame,
+            text=name[:30],  # Truncate long names
+            text_color=theme.text,
+            font=(theme.font_family, 10, "bold"),
+        )
+        name_label.pack(side="left")
+        
+        pct_label = ctk.CTkLabel(
+            header_frame,
+            text=f"{self.percentage:.1f}%",
+            text_color=self._get_color_for_percentage(),
+            font=(theme.font_family, 10, "bold"),
+        )
+        pct_label.pack(side="right")
+        
+        # Canvas for semi-gauge
         self.canvas = ctk.CTkCanvas(
             self,
-            width=120,
-            height=120,
+            width=200,
+            height=60,
             bg=theme.card_bg,
             highlightthickness=0,
         )
-        self.canvas.pack(pady=(0, 8))
-        self._draw_gauge()
+        self.canvas.pack(pady=(0, 4))
+        self._draw_semi_gauge()
         
-        # Name label
-        name_label = ctk.CTkLabel(
-            self,
-            text=name,
-            text_color=theme.text,
-            font=(theme.font_family, 9, "bold"),
-        )
-        name_label.pack()
-        
-        # Percentage label
-        pct_label = ctk.CTkLabel(
-            self,
-            text=f"{self.percentage:.1f}%",
-            text_color=self._get_color_for_percentage(),
-            font=(theme.font_family, 11, "bold"),
-        )
-        pct_label.pack()
-        
-        # Usage label
-        usage_label = ctk.CTkLabel(
+        # Bottom section: usage info
+        footer_label = ctk.CTkLabel(
             self,
             text=f"{used} / {total}",
             text_color=theme.muted,
-            font=(theme.font_family, 8),
+            font=(theme.font_family, 9),
         )
-        usage_label.pack()
+        footer_label.pack()
     
     def _get_color_for_percentage(self) -> str:
         """Get color based on percentage usage."""
@@ -83,49 +85,33 @@ class GaugeWidget(ctk.CTkFrame):
         else:
             return self.theme.success
     
-    def _draw_gauge(self) -> None:
-        """Draw circular gauge on canvas."""
-        w = h = 120
-        center_x = center_y = w / 2
-        radius = 45
+    def _draw_semi_gauge(self) -> None:
+        """Draw minimal semicircular gauge on canvas."""
+        w, h = 200, 60
         
-        # Background circle
-        self.canvas.create_oval(
-            center_x - radius,
-            center_y - radius,
-            center_x + radius,
-            center_y + radius,
+        # Background semicircle (light gray)
+        self.canvas.create_arc(
+            10, 10,
+            w - 10, h,
+            start=0,
+            extent=180,
             fill=self.theme.border,
             outline=self.theme.border,
+            width=2,
         )
         
-        # Progress arc
+        # Progress semicircle
         if self.percentage > 0:
-            # Convert percentage to arc extent (0-360 degrees, but we use 0-270 for visual)
-            extent = (self.percentage / 100) * 270
-            
+            extent = (self.percentage / 100) * 180
             self.canvas.create_arc(
-                center_x - radius,
-                center_y - radius,
-                center_x + radius,
-                center_y + radius,
-                start=225,  # Start from top-left
+                10, 10,
+                w - 10, h,
+                start=0,
                 extent=extent,
                 fill=self._get_color_for_percentage(),
                 outline=self._get_color_for_percentage(),
-                width=8,
+                width=2,
             )
-        
-        # Center white circle (donut effect)
-        inner_radius = 30
-        self.canvas.create_oval(
-            center_x - inner_radius,
-            center_y - inner_radius,
-            center_x + inner_radius,
-            center_y + inner_radius,
-            fill=self.theme.card_bg,
-            outline=self.theme.card_bg,
-        )
 
 
 class LimitMonitorApp:
@@ -358,13 +344,12 @@ class LimitMonitorApp:
             self._log(f"❌ Errore: {e}")
     
     def _display_limits(self, limits) -> None:
-        """Display limits with gauges in UI."""
+        """Display limits with minimal semi-gauges in UI."""
         # Clear previous content
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
         
         if not limits:
-            self.scrollable_frame.pack(fill="both", expand=True, padx=12, pady=12)
             label = ThemedLabel(
                 self.scrollable_frame,
                 "Nessun limite trovato",
@@ -379,14 +364,8 @@ class LimitMonitorApp:
         if isinstance(limits, dict):
             limits = [limits]
         
-        # Create a grid of gauges
-        gauge_frame = ThemedFrame(self.scrollable_frame, theme=self.theme, card_style=False)
-        gauge_frame.pack(fill="both", expand=True)
-        
-        col = 0
-        max_cols = 4
-        
-        # Display limits as gauges
+        # Display limits as semi-gauges
+        gauge_count = 0
         for limit in limits:
             try:
                 if isinstance(limit, dict):
@@ -404,16 +383,16 @@ class LimitMonitorApp:
                         total = 0
                     
                     # Create gauge widget
-                    gauge = GaugeWidget(
-                        gauge_frame,
+                    gauge = SemiGaugeWidget(
+                        self.scrollable_frame,
                         name=name,
                         used=used,
                         total=total,
                         theme=self.theme,
                     )
-                    gauge.grid(row=col // max_cols, column=col % max_cols, padx=10, pady=10, sticky="nsew")
-                    col += 1
+                    gauge.pack(fill="x", pady=12)
+                    gauge_count += 1
             except Exception as e:
                 logger.error(f"Error displaying limit: {e}")
         
-        self._log(f"✅ Limiti caricati ({col} limiti visualizzati)")
+        self._log(f"✅ Limiti caricati ({gauge_count} limiti visualizzati)")
