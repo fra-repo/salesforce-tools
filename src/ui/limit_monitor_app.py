@@ -5,6 +5,7 @@ from pathlib import Path
 import threading
 import logging
 from typing import List
+import json
 
 from ..core.sf_cli import SalesforceCliManager
 from ..core.exceptions import SalesforceError
@@ -217,15 +218,25 @@ class LimitMonitorApp:
             org_alias = org.split(" ")[0]
             logger.info(f"Fetching limits for org: {org_alias}")
             
-            # Run sf org limits command
+            # Run sf org list limits command
             result = self.sf_cli._run_command(
                 ["org", "list", "limits", "--target-org", org_alias, "--json"]
             )
             
             if result["success"]:
-                import json
                 data = json.loads(result["stdout"])
-                limits = data.get("result", [])
+                logger.debug(f"Raw limits response: {json.dumps(data, indent=2)}")
+                
+                # Parse limits data - handle different response formats
+                limits = []
+                if isinstance(data, dict):
+                    if "result" in data:
+                        limits = data["result"]
+                    else:
+                        # Assume the dict itself contains limits
+                        limits = data
+                elif isinstance(data, list):
+                    limits = data
                 
                 # Clear and show limits
                 self.root.after(0, self._display_limits, limits)
@@ -243,15 +254,37 @@ class LimitMonitorApp:
         
         if not limits:
             self.limits_text.insert("1.0", "Nessun limite trovato")
-        else:
-            for limit in limits:
-                name = limit.get("name", "N/A")
-                used = limit.get("used", 0)
-                total = limit.get("total", 0)
-                percentage = (used / total * 100) if total > 0 else 0
-                
-                line = f"{name:30} | {used:6} / {total:6} ({percentage:5.1f}%)\n"
-                self.limits_text.insert("end", line)
+            self.limits_text.configure(state="disabled")
+            return
+        
+        # Handle different limit formats
+        if isinstance(limits, dict):
+            limits = [limits]
+        
+        # Display limits
+        for limit in limits:
+            try:
+                if isinstance(limit, dict):
+                    # Try different key formats
+                    name = limit.get("name") or limit.get("Name") or limit.get("LIMIT_NAME", "N/A")
+                    used = limit.get("used") or limit.get("Used") or limit.get("value", 0)
+                    total = limit.get("total") or limit.get("Total") or limit.get("max", 0)
+                    
+                    # Convert to int if string
+                    try:
+                        used = int(used) if used else 0
+                        total = int(total) if total else 0
+                    except (ValueError, TypeError):
+                        used = 0
+                        total = 0
+                    
+                    percentage = (used / total * 100) if total > 0 else 0
+                    
+                    line = f"{name:35} | {used:8} / {total:8} ({percentage:6.1f}%)\n"
+                    self.limits_text.insert("end", line)
+            except Exception as e:
+                logger.error(f"Error displaying limit: {e}")
+                self.limits_text.insert("end", f"Errore: {e}\n")
         
         self.limits_text.configure(state="disabled")
         self._log(f"✅ Limiti caricati")
