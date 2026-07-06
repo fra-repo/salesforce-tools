@@ -9,7 +9,7 @@ import customtkinter as ctk
 
 from src.logging_config import setup_logging
 from src.config import AppConfig
-from src.ui.theme import get_theme
+from src.ui.theme import get_theme, THEMES
 from src.ui.components import (
     ThemedFrame,
     ThemedLabel,
@@ -26,6 +26,7 @@ from src.ui.limit_monitor_app import LimitMonitorApp
 
 logger = setup_logging()
 logger.info("Starting Salesforce Tools Suite v2.0")
+TOOL_SWITCH_DELAY_MS = 90
 
 
 class SalesforceToolsSuite(ctk.CTk):
@@ -35,7 +36,7 @@ class SalesforceToolsSuite(ctk.CTk):
         super().__init__()
 
         self.config = AppConfig.load()
-        if self.config.theme not in {"dark", "light", "glass", "embedded"}:
+        if self.config.theme not in THEMES:
             self.config.theme = "dark"
         self.theme = get_theme(self.config.theme)
         self.sidebar_collapsed = False
@@ -103,11 +104,12 @@ class SalesforceToolsSuite(ctk.CTk):
         footer_frame.pack(fill="x", padx=12, pady=(12, 12))
         footer_frame.configure(fg_color=self.theme.sidebar_bg)
 
-        self.theme_var = tk.StringVar(value=self.config.theme if self.config.theme in {"dark", "light", "glass"} else "dark")
+        selectable_themes = [name for name in THEMES if name != "embedded"]
+        self.theme_var = tk.StringVar(value=self.config.theme if self.config.theme in selectable_themes else "dark")
         self.theme_combo = ThemedComboBox(
             footer_frame,
             theme=self.theme,
-            values=["dark", "light", "glass"],
+            values=selectable_themes,
             command=self._on_theme_change,
             state="readonly",
         )
@@ -219,7 +221,7 @@ class SalesforceToolsSuite(ctk.CTk):
 
         self.current_tool = tool_id
         self.breadcrumb.configure(text=f"Home / {self.nav_buttons[tool_id]['label']}")
-        self.after(90, lambda: self.tool_frames[tool_id].pack(fill="both", expand=True))
+        self.after(TOOL_SWITCH_DELAY_MS, lambda: self.tool_frames[tool_id].pack(fill="both", expand=True))
         logger.info(f"Switched to tool: {tool_id}")
 
     def _on_theme_change(self, theme_name: str) -> None:

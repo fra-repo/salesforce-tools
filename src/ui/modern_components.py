@@ -17,9 +17,10 @@ Theme = ModernTheme
 class ModernFrame(ctk.CTkFrame):
     """Modern frame with optional elevated/glass styles."""
 
-    def __init__(self, master, theme: Theme = DEFAULT_THEME, card: bool = False, glass: bool = False, card_style: Optional[bool] = None, **kwargs):
-        if card_style is not None:
-            card = card_style
+    def __init__(self, master, theme: Theme = DEFAULT_THEME, card: bool = False, glass: bool = False, **kwargs):
+        legacy_card_style = kwargs.pop("card_style", None)
+        if legacy_card_style is not None:
+            card = legacy_card_style
         if card:
             super().__init__(master, **card_tokens(theme, glass=glass), **kwargs)
         else:
@@ -243,7 +244,7 @@ class LoadingSpinner(ctk.CTkFrame):
 
     def __init__(self, master, theme: Theme = DEFAULT_THEME, size: int = 16, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
-        self._canvas = ctk.CTkCanvas(self, width=size, height=size, bg=self._apply_appearance_mode("transparent"), highlightthickness=0)
+        self._canvas = ctk.CTkCanvas(self, width=size, height=size, bg=theme.app_bg, highlightthickness=0)
         self._canvas.pack()
         self._theme = theme
         self._size = size

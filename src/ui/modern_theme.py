@@ -27,7 +27,7 @@ class ModernTheme:
     error: str
     shadow: str
     glass_tint: str
-    font_family: str = "Segoe UI" if os.name == "nt" else "Inter"
+    font_family: str = "Segoe UI" if os.name == "nt" else "Helvetica"
     radius_lg: int = 24
     radius_md: int = 20
     radius_sm: int = 14
