@@ -23,8 +23,8 @@ import customtkinter as ctk
 logger = logging.getLogger(__name__)
 
 
-class SemiGaugeWidget(ctk.CTkFrame):
-    """Minimal semicircular gauge widget for displaying limit usage."""
+class LimitGaugeWidget(ctk.CTkFrame):
+    """Minimal progress bar gauge widget for displaying limit usage."""
     
     def __init__(self, master, name: str, used: int, total: int, theme, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
@@ -34,15 +34,15 @@ class SemiGaugeWidget(ctk.CTkFrame):
         self.total = total
         self.percentage = (used / total * 100) if total > 0 else 0
         
-        # Top section: name + percentage
+        # Header: name + percentage
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 6))
+        header_frame.pack(fill="x", pady=(0, 8))
         
         name_label = ctk.CTkLabel(
             header_frame,
-            text=name[:30],  # Truncate long names
+            text=name[:40],  # Truncate long names
             text_color=theme.text,
-            font=(theme.font_family, 10, "bold"),
+            font=(theme.font_family, 11, "bold"),
         )
         name_label.pack(side="left")
         
@@ -50,27 +50,27 @@ class SemiGaugeWidget(ctk.CTkFrame):
             header_frame,
             text=f"{self.percentage:.1f}%",
             text_color=self._get_color_for_percentage(),
-            font=(theme.font_family, 10, "bold"),
+            font=(theme.font_family, 11, "bold"),
         )
         pct_label.pack(side="right")
         
-        # Canvas for semi-gauge
-        self.canvas = ctk.CTkCanvas(
+        # Progress bar
+        self.progress_bar = ctk.CTkProgressBar(
             self,
-            width=200,
-            height=60,
-            bg=theme.card_bg,
-            highlightthickness=0,
+            height=12,
+            corner_radius=6,
+            fg_color=theme.border,
+            progress_color=self._get_color_for_percentage(),
         )
-        self.canvas.pack(pady=(0, 4))
-        self._draw_semi_gauge()
+        self.progress_bar.pack(fill="x", pady=(0, 8))
+        self.progress_bar.set(self.percentage / 100)
         
-        # Bottom section: usage info
+        # Footer: usage info
         footer_label = ctk.CTkLabel(
             self,
-            text=f"{used} / {total}",
+            text=f"{used:,} / {total:,}",
             text_color=theme.muted,
-            font=(theme.font_family, 9),
+            font=(theme.font_family, 10),
         )
         footer_label.pack()
     
@@ -84,34 +84,6 @@ class SemiGaugeWidget(ctk.CTkFrame):
             return self.theme.accent
         else:
             return self.theme.success
-    
-    def _draw_semi_gauge(self) -> None:
-        """Draw minimal semicircular gauge on canvas."""
-        w, h = 200, 60
-        
-        # Background semicircle (light gray)
-        self.canvas.create_arc(
-            10, 10,
-            w - 10, h,
-            start=0,
-            extent=180,
-            fill=self.theme.border,
-            outline=self.theme.border,
-            width=2,
-        )
-        
-        # Progress semicircle
-        if self.percentage > 0:
-            extent = (self.percentage / 100) * 180
-            self.canvas.create_arc(
-                10, 10,
-                w - 10, h,
-                start=0,
-                extent=extent,
-                fill=self._get_color_for_percentage(),
-                outline=self._get_color_for_percentage(),
-                width=2,
-            )
 
 
 class LimitMonitorApp:
@@ -344,7 +316,7 @@ class LimitMonitorApp:
             self._log(f"❌ Errore: {e}")
     
     def _display_limits(self, limits) -> None:
-        """Display limits with minimal semi-gauges in UI."""
+        """Display limits with progress bars in UI."""
         # Clear previous content
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
@@ -364,7 +336,7 @@ class LimitMonitorApp:
         if isinstance(limits, dict):
             limits = [limits]
         
-        # Display limits as semi-gauges
+        # Display limits as progress bars
         gauge_count = 0
         for limit in limits:
             try:
@@ -383,14 +355,14 @@ class LimitMonitorApp:
                         total = 0
                     
                     # Create gauge widget
-                    gauge = SemiGaugeWidget(
+                    gauge = LimitGaugeWidget(
                         self.scrollable_frame,
                         name=name,
                         used=used,
                         total=total,
                         theme=self.theme,
                     )
-                    gauge.pack(fill="x", pady=12)
+                    gauge.pack(fill="x", pady=16)
                     gauge_count += 1
             except Exception as e:
                 logger.error(f"Error displaying limit: {e}")
