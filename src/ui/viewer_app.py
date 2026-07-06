@@ -14,6 +14,8 @@ from ..ui.components import (
     ThemedLabel,
     ThemedEntry,
     ThemedFrame,
+    ModernTabs,
+    BadgeChip,
 )
 import customtkinter as ctk
 
@@ -82,6 +84,7 @@ class DataViewerApp:
             is_primary=True,
         )
         self.load_btn.pack(side="left")
+        BadgeChip(file_row, text="Viewer", theme=self.theme).pack(side="left", padx=(10, 0))
         
         self.file_info_var = tk.StringVar(value="Nessun file caricato")
         info_label = ThemedLabel(
@@ -105,10 +108,10 @@ class DataViewerApp:
             color=self.theme.subtle,
         ).pack(side="left", padx=(0, 15))
         
-        search_entry = ctk.CTkEntry(
+        search_entry = ThemedEntry(
             search_row,
+            theme=self.theme,
             textvariable=self.search_var,
-            font=(self.theme.font_family, 11),
         )
         search_entry.pack(side="left", fill="x", expand=True, ipady=4)
         search_entry.configure(state="disabled")
@@ -126,7 +129,7 @@ class DataViewerApp:
         self.clear_btn = clear_btn
         
         # TABS
-        self.notebook = ttk.Notebook(main_frame)
+        self.notebook = ModernTabs(main_frame, theme=self.theme)
         self.notebook.pack(fill="both", expand=True)
         
         # Tab 1: Table view

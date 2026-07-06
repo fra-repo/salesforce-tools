@@ -21,6 +21,9 @@ from ..ui.components import (
     ThemedFrame,
     ThemedComboBox,
     ProgressIndicator,
+    FloatingLabelInput,
+    BadgeChip,
+    LoadingSpinner,
 )
 import customtkinter as ctk
 
@@ -85,6 +88,7 @@ class MassiveQueryApp:
         top_bar.pack(fill="x", pady=(0, 10))
         
         ThemedLabel(top_bar, "Salesforce Org:", theme=self.theme, size=10, bold=True).pack(side="left", padx=(0, 10))
+        BadgeChip(top_bar, text="Massive Query", theme=self.theme).pack(side="left", padx=(0, 10))
         
         self.alias_var = tk.StringVar()
         self.alias_combo = ThemedComboBox(
@@ -133,10 +137,13 @@ class MassiveQueryApp:
         ).pack(anchor="w", padx=12, pady=(12, 6))
         
         self.chunk_size_var = tk.IntVar(value=200)
-        ThemedEntry(
+        self.chunk_size_entry = FloatingLabelInput(
             param_card,
             theme=self.theme,
-        ).pack(fill="x", padx=12, pady=(0, 12))
+            label="Chunk size",
+            textvariable=self.chunk_size_var,
+        )
+        self.chunk_size_entry.pack(fill="x", padx=12, pady=(0, 12))
         
         # Bind values
         values_card = ThemedFrame(left_col, theme=self.theme, card_style=True)
@@ -150,7 +157,15 @@ class MassiveQueryApp:
             bold=True,
         ).pack(anchor="w", padx=12, pady=(12, 6))
         
-        self.bind_text = ctk.CTkTextbox(values_card, wrap="none", font=("Consolas", 10), border_width=0)
+        self.bind_text = ctk.CTkTextbox(
+            values_card,
+            wrap="none",
+            font=("Consolas", 10),
+            border_width=1,
+            border_color=self.theme.border,
+            fg_color=self.theme.input_bg,
+            text_color=self.theme.text,
+        )
         self.bind_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
         
         # BODY - Right column
@@ -169,7 +184,16 @@ class MassiveQueryApp:
             bold=True,
         ).pack(anchor="w", padx=12, pady=(12, 6))
         
-        self.query_text = ctk.CTkTextbox(query_card, height=100, wrap="word", font=("Consolas", 10), border_width=0)
+        self.query_text = ctk.CTkTextbox(
+            query_card,
+            height=100,
+            wrap="word",
+            font=("Consolas", 10),
+            border_width=1,
+            border_color=self.theme.border,
+            fg_color=self.theme.input_bg,
+            text_color=self.theme.text,
+        )
         self.query_text.pack(fill="x", padx=12, pady=(0, 12))
         self.query_text.insert("1.0", "SELECT Id, Name FROM Account WHERE Id IN :bind_values")
         
@@ -189,7 +213,8 @@ class MassiveQueryApp:
         dest_frame.pack(fill="x", padx=12, pady=(0, 12))
         
         self.dest_dir_var = tk.StringVar(value=str(Path("./salesforce_extracts").resolve()))
-        ThemedEntry(dest_frame, theme=self.theme).pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.dest_dir_entry = ThemedEntry(dest_frame, theme=self.theme, textvariable=self.dest_dir_var)
+        self.dest_dir_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
         ThemedButton(
             dest_frame,
@@ -234,6 +259,8 @@ class MassiveQueryApp:
         
         self.progress = ProgressIndicator(console_card, theme=self.theme)
         self.progress.pack(fill="x", padx=12, pady=(0, 8))
+        self.spinner = LoadingSpinner(console_card, theme=self.theme)
+        self.spinner.pack(anchor="e", padx=12, pady=(0, 6))
         
         self.log_text = ctk.CTkTextbox(console_card, wrap="word", font=("Consolas", 9), height=100, border_width=0)
         self.log_text.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -351,6 +378,7 @@ class MassiveQueryApp:
             self.abort_btn.configure(state="normal")
             self.abort_event.clear()
             self.progress.set_progress(0)
+            self.spinner.start()
             
             threading.Thread(
                 target=self._run_extraction,
@@ -436,6 +464,7 @@ class MassiveQueryApp:
             self.root.after(0, lambda: [
                 self.run_btn.configure(state="normal"),
                 self.abort_btn.configure(state="disabled"),
+                self.spinner.stop(),
             ])
     
     def _abort_extraction(self) -> None:

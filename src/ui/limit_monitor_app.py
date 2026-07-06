@@ -12,6 +12,8 @@ from ..ui.components import (
     ThemedLabel,
     ThemedFrame,
     ThemedComboBox,
+    BadgeChip,
+    ModernToggle,
 )
 import customtkinter as ctk
 
@@ -59,6 +61,7 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
             size=20,
             bold=True,
         ).pack(pady=(10, 8))
+        BadgeChip(self, text="Live Monitor", theme=self.theme, color=self.theme.accent).pack(pady=(0, 8))
         
         # Toolbar
         toolbar = ThemedFrame(self, theme=self.theme, card_style=False)
@@ -98,6 +101,14 @@ class LimitMonitorApp(ctk.CTkScrollableFrame):
             is_primary=True,
         )
         self.load_btn.pack(side="left")
+        self.auto_refresh_var = tk.BooleanVar(value=False)
+        self.auto_refresh_toggle = ModernToggle(
+            toolbar,
+            text="Auto refresh",
+            theme=self.theme,
+            variable=self.auto_refresh_var,
+        )
+        self.auto_refresh_toggle.pack(side="right")
         
         # Status label
         self.status_label = ThemedLabel(
