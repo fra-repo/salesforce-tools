@@ -16,6 +16,12 @@ class CliNotFound(SalesforceError):
     pass
 
 
+class AuthenticationError(SalesforceError):
+    """Raised when authentication fails or org not accessible."""
+
+    pass
+
+
 class OrgNotFound(SalesforceError):
     """Raised when requested organization is not authenticated."""
 
