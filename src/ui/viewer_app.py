@@ -85,15 +85,14 @@ class DataViewerApp:
         )
         self.load_btn.pack(side="left")
         BadgeChip(file_row, text="Viewer", theme=self.theme).pack(side="left", padx=(10, 0))
-        
-        self.file_info_var = tk.StringVar(value="Nessun file caricato")
-        info_label = ThemedLabel(
+
+        self.file_info_label = ThemedLabel(
             file_row,
-            textvariable=self.file_info_var,
+            "Nessun file caricato",
             theme=self.theme,
             size=11,
         )
-        info_label.pack(side="left", padx=20)
+        self.file_info_label.pack(side="left", padx=20)
         
         # SEARCH ROW
         search_row = ThemedFrame(top_panel, theme=self.theme, card_style=False)
@@ -266,8 +265,8 @@ class DataViewerApp:
             self.all_rows = list(reader)
         
         self.filtered_rows = list(self.all_rows)
-        self.file_info_var.set(
-            f"CSV • {path.name} • {len(self.all_rows)} record"
+        self.file_info_label.configure(
+            text=f"CSV • {path.name} • {len(self.all_rows)} record"
         )
         
         self.raw_text.configure(state="normal")
@@ -313,8 +312,8 @@ class DataViewerApp:
         ]
         
         self.filtered_rows = list(self.all_rows)
-        self.file_info_var.set(
-            f"JSON • {path.name} • {len(self.all_rows)} record"
+        self.file_info_label.configure(
+            text=f"JSON • {path.name} • {len(self.all_rows)} record"
         )
         
         self._reset_and_render()
