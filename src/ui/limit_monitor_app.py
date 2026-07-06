@@ -293,27 +293,18 @@ class LimitMonitorApp:
             
             if result["success"]:
                 data = json.loads(result["stdout"])
-                logger.debug(f"Raw limits response (first 500 chars): {str(data)[:500]}")
-                logger.debug(f"Full JSON: {json.dumps(data, indent=2)}")
+                logger.debug(f"Raw limits response: {json.dumps(data, indent=2)}")
                 
                 # Parse limits data - handle different response formats
                 limits = []
                 if isinstance(data, dict):
                     if "result" in data:
                         limits = data["result"]
-                        logger.debug(f"Using 'result' key. Type: {type(limits)}, Count: {len(limits) if isinstance(limits, list) else 'N/A'}")
                     else:
                         # Assume the dict itself contains limits
                         limits = data
-                        logger.debug(f"Using dict directly. Keys: {list(data.keys())[:10]}")
                 elif isinstance(data, list):
                     limits = data
-                    logger.debug(f"Using list directly. Count: {len(limits)}")
-                
-                # Log first limit for inspection
-                if limits:
-                    first_limit = limits[0] if isinstance(limits, list) else limits
-                    logger.debug(f"First limit structure: {json.dumps(first_limit, indent=2)}")
                 
                 # Clear and show limits
                 self.root.after(0, self._display_limits, limits)
@@ -350,43 +341,22 @@ class LimitMonitorApp:
         for idx, limit in enumerate(limits):
             try:
                 if isinstance(limit, dict):
-                    logger.debug(f"Processing limit {idx}: Keys = {list(limit.keys())}")
-                    
-                    # Try different key formats
+                    # Try different key formats for name
                     name = limit.get("name") or limit.get("Name") or limit.get("LIMIT_NAME", "N/A")
                     
-                    # Try all possible keys for used value
-                    used = None
-                    for key in ["used", "Used", "value", "Value", "remaining", "Remaining"]:
-                        if key in limit:
-                            used = limit[key]
-                            logger.debug(f"Found 'used' value in key '{key}': {used}")
-                            break
-                    if used is None:
-                        used = 0
-                        logger.debug(f"No 'used' key found, using 0")
-                    
-                    # Try all possible keys for total value
-                    total = None
-                    for key in ["total", "Total", "max", "Max", "limit", "Limit"]:
-                        if key in limit:
-                            total = limit[key]
-                            logger.debug(f"Found 'total' value in key '{key}': {total}")
-                            break
-                    if total is None:
-                        total = 0
-                        logger.debug(f"No 'total' key found, using 0")
+                    # Salesforce returns "usato" (used) and "massimo" (maximum)
+                    used = limit.get("usato") or limit.get("Usato") or limit.get("used") or limit.get("Used") or 0
+                    total = limit.get("massimo") or limit.get("Massimo") or limit.get("total") or limit.get("Total") or limit.get("max") or limit.get("Max") or 0
                     
                     # Convert to int if string
                     try:
                         used = int(used) if used else 0
                         total = int(total) if total else 0
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"Conversion error for limit {idx}: {e}. used={used}, total={total}")
+                    except (ValueError, TypeError):
                         used = 0
                         total = 0
                     
-                    logger.debug(f"Limit {idx}: name={name}, used={used}, total={total}")
+                    logger.debug(f"Limit {idx}: name={name}, usato={used}, massimo={total}")
                     
                     # Create gauge widget
                     gauge = LimitGaugeWidget(
