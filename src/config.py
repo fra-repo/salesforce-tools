@@ -31,7 +31,7 @@ class AppConfig:
     page_size: int = 100
     
     # UI settings
-    theme: str = "light"
+    theme: str = "dark"
     window_width: int = 1500
     window_height: int = 960
     

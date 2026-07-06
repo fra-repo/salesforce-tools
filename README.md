@@ -40,8 +40,11 @@ src/
 │   ├── data_extractor.py    # Estrazione con chunking automatico
 │   └── data_exporter.py     # Export CSV, JSON, Excel
 ├── ui/                       # Componenti UI
-│   ├── theme.py             # Sistema tema (light, dark, embedded)
-│   ├── components.py        # 7 widget riutilizzabili
+│   ├── modern_theme.py      # Sistema tema moderno (dark, light, glass)
+│   ├── modern_components.py # Componenti UI moderni (card, badge, toast, tabs)
+│   ├── styles.py            # Token styling centralizzati
+│   ├── theme.py             # Wrapper compatibilità tema
+│   ├── components.py        # Wrapper compatibilità componenti
 │   ├── massive_query_app.py # Tool estrazione refactorizzato
 │   ├── viewer_app.py        # Tool visualizzatore refactorizzato
 │   └── limit_monitor_app.py # Tool limiti refactorizzato
@@ -114,7 +117,7 @@ File config: `~/.salesforce-tools/config.json`
   "chunk_size": 200,
   "page_size": 100,
   "export_formats": ["csv", "json"],
-  "theme": "light",
+  "theme": "dark",
   "default_output_dir": "./salesforce_extracts"
 }
 ```
