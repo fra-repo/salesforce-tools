@@ -102,10 +102,11 @@ class LimitMonitorApp:
             top_bar,
             theme=self.theme,
             values=["Caricamento..."],
-            command=self._on_org_selected,
         )
         self.alias_combo.pack(side="left", padx=(0, 10))
         self.alias_combo.configure(state="disabled")
+        # Bind to the combobox value changes
+        self.alias_combo.bind("<FocusOut>", self._on_org_selected)
         
         self.refresh_btn = ThemedButton(
             top_bar,
@@ -150,7 +151,7 @@ class LimitMonitorApp:
         self.limits_text.insert("1.0", "Seleziona un org e clicca 'Verifica Limiti' per visualizzare i dati...")
         self.limits_text.configure(state="disabled")
     
-    def _on_org_selected(self) -> None:
+    def _on_org_selected(self, event=None) -> None:
         """Handle org selection from combobox."""
         selected = self.alias_combo.get()
         self.alias_var.set(selected)
@@ -197,7 +198,8 @@ class LimitMonitorApp:
     
     def _check_limits(self) -> None:
         """Check platform limits."""
-        org = self.alias_var.get().strip()
+        # Read current value from combobox directly
+        org = self.alias_combo.get().strip()
         if not org:
             self._safe_log("❌ Seleziona un org")
             return
