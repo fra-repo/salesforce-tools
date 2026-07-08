@@ -5,6 +5,7 @@ handling command execution, org discovery, and error handling.
 """
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +21,7 @@ from .exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+CLI_ARG_PATTERN = re.compile(r'^[A-Za-z0-9_@.,:=()<>%!/"\'\s-]+$')
 
 
 class SalesforceCliManager:
@@ -85,7 +87,7 @@ class SalesforceCliManager:
         for arg in args:
             if not isinstance(arg, str):
                 raise QueryExecutionError("", "Argomento CLI non valido", {"argument_type": type(arg).__name__})
-            if any(char in arg for char in ("\x00", "\n", "\r")):
+            if not CLI_ARG_PATTERN.fullmatch(arg):
                 raise QueryExecutionError("", "Argomento CLI contiene caratteri non validi", {"argument": arg})
             safe_args.append(arg)
 
