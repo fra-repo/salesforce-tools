@@ -74,6 +74,19 @@ function parseJson(text: string): { headers: string[]; rows: string[][] } {
   return { headers, rows }
 }
 
+function getRowKey(headers: string[], row: string[], fallback: string): string {
+  const stableHeader = ['Id', 'ID', 'id', 'Name'].find((header) => headers.includes(header))
+  if (stableHeader) {
+    const index = headers.indexOf(stableHeader)
+    const value = row[index]
+    if (value) {
+      return `${stableHeader}:${value}`
+    }
+  }
+
+  return `${fallback}:${JSON.stringify(row)}`
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -404,11 +417,11 @@ function App() {
               </label>
 
               <label className="field-span-2">
-                Cartella output backend
+                Cartella output backend (fissata per sicurezza)
                 <input
                   type="text"
                   value={queryForm.outputDir}
-                  onChange={(event) => setQueryForm((current) => ({ ...current, outputDir: event.target.value }))}
+                  readOnly
                 />
               </label>
 
@@ -491,7 +504,7 @@ function App() {
                     </thead>
                     <tbody>
                       {queryResult.previewRows.map((row, index) => (
-                        <tr key={index}>
+                        <tr key={getRowKey(queryResult.headers, row, `preview-${index}`)}>
                           {row.map((cell, cellIndex) => (
                             <td key={`${index}-${cellIndex}`}>{cell}</td>
                           ))}
@@ -571,7 +584,7 @@ function App() {
                     </thead>
                     <tbody>
                       {paginatedViewerRows.map((row, rowIndex) => (
-                        <tr key={rowIndex}>
+                        <tr key={getRowKey(viewerData.headers, row, `viewer-${rowIndex}`)}>
                           {row.map((cell, cellIndex) => (
                             <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
                           ))}

@@ -13,6 +13,8 @@ from src.core.soql_validator import SOQLValidator
 from src.operations.data_extractor import SalesforceDataExtractor
 from src.operations.data_exporter import DataExporter
 
+WEB_OUTPUT_DIR_NAME = "salesforce_extracts"
+
 UI_DISCOVERY: Dict[str, Any] = {
     "hasWebUi": False,
     "summary": (
@@ -157,25 +159,9 @@ def normalize_limits(raw_limits: Any) -> List[Dict[str, Any]]:
     return normalized
 
 
-
-
-def resolve_output_dir(raw_output_dir: str, default_output_dir: str) -> Path:
-    """Resolve output directory while constraining writes to the current workspace."""
-    workspace_root = Path.cwd().resolve()
-    candidate = Path(raw_output_dir or default_output_dir).expanduser()
-    if not candidate.is_absolute():
-        candidate = (workspace_root / candidate).resolve()
-    else:
-        candidate = candidate.resolve()
-
-    try:
-        candidate.relative_to(workspace_root)
-    except ValueError as exc:
-        raise ValidationError(
-            "La cartella output deve trovarsi all'interno della repository corrente"
-        ) from exc
-
-    return candidate
+def resolve_output_dir() -> Path:
+    """Return the fixed server-side export directory used by the web adapter."""
+    return (Path.cwd().resolve() / WEB_OUTPUT_DIR_NAME).resolve()
 
 
 def build_app_state(config: AppConfig | None = None) -> Dict[str, Any]:
@@ -187,7 +173,7 @@ def build_app_state(config: AppConfig | None = None) -> Dict[str, Any]:
         "uiDiscovery": UI_DISCOVERY,
         "defaults": {
             "chunkSize": current.chunk_size,
-            "outputDir": current.default_output_dir,
+            "outputDir": str(resolve_output_dir()),
             "exportFormats": current.export_formats,
             "theme": current.theme,
             "pageSize": current.page_size,
@@ -228,10 +214,7 @@ def execute_massive_query(payload: Dict[str, Any], config: AppConfig | None = No
     soql = str(payload.get("soql", "")).strip()
     bind_values = split_bind_values(str(payload.get("bindValues", "")))
     chunk_size = int(payload.get("chunkSize") or current.chunk_size)
-    output_dir = resolve_output_dir(
-        str(payload.get("outputDir") or ""),
-        current.default_output_dir,
-    )
+    output_dir = resolve_output_dir()
     export_formats = payload.get("exportFormats") or current.export_formats
 
     if not org_alias:

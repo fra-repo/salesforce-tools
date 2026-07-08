@@ -81,7 +81,15 @@ class SalesforceCliManager:
         Raises:
             QueryExecutionError: If command fails
         """
-        cmd = [self.sf_command] + args
+        safe_args = []
+        for arg in args:
+            if not isinstance(arg, str):
+                raise QueryExecutionError("", "Argomento CLI non valido", {"argument_type": type(arg).__name__})
+            if any(char in arg for char in ("\x00", "\n", "\r")):
+                raise QueryExecutionError("", "Argomento CLI contiene caratteri non validi", {"argument": arg})
+            safe_args.append(arg)
+
+        cmd = [self.sf_command] + safe_args
         logger.debug(f"Running: {' '.join(cmd)}")
 
         try:
@@ -90,6 +98,7 @@ class SalesforceCliManager:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                shell=False,
             )
 
             return {

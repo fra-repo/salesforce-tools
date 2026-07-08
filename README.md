@@ -169,6 +169,7 @@ sf org list
 
 - Nessun template HTML, Streamlit, Gradio, Flet, Flask o FastAPI è presente nel repository.
 - Per minimizzare modifiche invasive al backend, il nuovo layer web usa `python -m src.api.server` basato su `http.server` standard library.
+- Nel primo adapter web l'export server-side è volutamente fissato a `./salesforce_extracts` dentro la repository, così il browser non può richiedere scritture arbitrarie sul filesystem del server.
 - Il **Data Viewer** è stato portato lato browser perché la UI originale apriva file locali; non serviva introdurre un endpoint upload dedicato per una prima migrazione verificabile.
 - Il **Massive Query** e il **Limits Monitor** riusano i servizi Python esistenti (`src/core` + `src/operations`) tramite adapter HTTP minimale.
 - La presenza della Salesforce CLI resta un prerequisito anche per la nuova UI web quando si vogliono usare org discovery, query o limiti live.

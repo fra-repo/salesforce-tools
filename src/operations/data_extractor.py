@@ -53,7 +53,9 @@ class SalesforceDataExtractor:
         if from_idx != -1:
             from_segment = soql[from_idx + len(" FROM ") :].strip()
             if from_segment:
-                sobject = from_segment.split()[0].rstrip(",")
+                sobject = from_segment.split()[0]
+                if sobject.endswith(","):
+                    sobject = sobject[:-1]
 
         return {
             "fields": fields,

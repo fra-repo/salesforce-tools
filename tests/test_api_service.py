@@ -4,7 +4,6 @@ from unittest.mock import patch
 from pathlib import Path
 
 from src.api.service import build_app_state, execute_massive_query, normalize_limits, resolve_output_dir, split_bind_values
-from src.core.exceptions import ValidationError
 from src.config import AppConfig
 
 
@@ -30,9 +29,8 @@ class ApiServiceTests(unittest.TestCase):
 
 
     @patch("src.api.service.Path.cwd", return_value=Path("/workspace/repo"))
-    def test_resolve_output_dir_rejects_paths_outside_workspace(self, _cwd):
-        with self.assertRaisesRegex(ValidationError, "repository corrente"):
-            resolve_output_dir("/tmp/outside", "/workspace/repo/salesforce_extracts")
+    def test_resolve_output_dir_is_fixed_inside_workspace(self, _cwd):
+        self.assertEqual(resolve_output_dir(), Path("/workspace/repo/salesforce_extracts"))
 
     def test_build_app_state_marks_existing_ui_as_non_web(self):
         state = build_app_state(AppConfig())
