@@ -76,11 +76,7 @@ class SalesforceToolsApiHandler(BaseHTTPRequestHandler):
                     self._send_error_json(HTTPStatus.BAD_REQUEST, "Missing org parameter")
                     return
                 cli = SalesforceCliManager()
-                result = cli._run_command(["org", "list", "limits", "--target-org", org, "--json"])
-                if not result["success"]:
-                    self._send_error_json(HTTPStatus.BAD_GATEWAY, result.get("stderr", "Unknown error"))
-                    return
-                raw_payload = json.loads(result["stdout"])
+                raw_payload = cli.get_limits(org)
                 self._send_json({"items": normalize_limits(raw_payload), "orgAlias": org})
                 return
 

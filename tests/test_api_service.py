@@ -1,7 +1,10 @@
 import unittest
 from unittest.mock import patch
 
-from src.api.service import build_app_state, execute_massive_query, normalize_limits, split_bind_values
+from pathlib import Path
+
+from src.api.service import build_app_state, execute_massive_query, normalize_limits, resolve_output_dir, split_bind_values
+from src.core.exceptions import ValidationError
 from src.config import AppConfig
 
 
@@ -25,15 +28,22 @@ class ApiServiceTests(unittest.TestCase):
             ],
         )
 
+
+    @patch("src.api.service.Path.cwd", return_value=Path("/workspace/repo"))
+    def test_resolve_output_dir_rejects_paths_outside_workspace(self, _cwd):
+        with self.assertRaisesRegex(ValidationError, "repository corrente"):
+            resolve_output_dir("/tmp/outside", "/workspace/repo/salesforce_extracts")
+
     def test_build_app_state_marks_existing_ui_as_non_web(self):
         state = build_app_state(AppConfig())
         self.assertFalse(state["uiDiscovery"]["hasWebUi"])
         self.assertGreaterEqual(len(state["uiDiscovery"]["activeUi"]), 4)
 
+    @patch("src.api.service.Path.cwd", return_value=Path("/workspace/repo"))
     @patch("src.api.service.DataExporter")
     @patch("src.api.service.SalesforceDataExtractor")
     @patch("src.api.service.SalesforceCliManager")
-    def test_execute_massive_query_returns_summary(self, cli_cls, extractor_cls, exporter_cls):
+    def test_execute_massive_query_returns_summary(self, cli_cls, extractor_cls, exporter_cls, _cwd):
         extractor = extractor_cls.return_value
         extractor.parse_soql_structure.return_value = {"fields": ["Id"]}
         extractor.chunk_bind_values.return_value = [["001", "002"], ["003"]]
@@ -56,10 +66,10 @@ class ApiServiceTests(unittest.TestCase):
                 "soql": "SELECT Id FROM Account WHERE Id IN :bind_values",
                 "bindValues": "001,002,003",
                 "chunkSize": 2,
-                "outputDir": "/tmp/exports",
+                "outputDir": "exports",
                 "exportFormats": ["csv", "json"],
             },
-            config=AppConfig(default_output_dir="/tmp/default"),
+            config=AppConfig(default_output_dir="/workspace/repo/salesforce_extracts"),
         )
 
         self.assertEqual(result["orgAlias"], "devhub")

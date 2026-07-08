@@ -491,7 +491,7 @@ function App() {
                     </thead>
                     <tbody>
                       {queryResult.previewRows.map((row, index) => (
-                        <tr key={`${row.join('-')}-${index}`}>
+                        <tr key={index}>
                           {row.map((cell, cellIndex) => (
                             <td key={`${index}-${cellIndex}`}>{cell}</td>
                           ))}
@@ -571,7 +571,7 @@ function App() {
                     </thead>
                     <tbody>
                       {paginatedViewerRows.map((row, rowIndex) => (
-                        <tr key={`${row.join('-')}-${rowIndex}`}>
+                        <tr key={rowIndex}>
                           {row.map((cell, cellIndex) => (
                             <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
                           ))}
