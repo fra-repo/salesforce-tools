@@ -20,3 +20,7 @@ htmlcov/
 
 # Output
 salesforce_extracts/
+
+# Frontend
+node_modules/
+frontend/.env.local
