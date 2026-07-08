@@ -4,7 +4,6 @@ Handles SOQL query execution and data extraction with automatic chunking.
 """
 
 import json
-import re
 from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
 import logging
@@ -40,35 +39,28 @@ class SalesforceDataExtractor:
         logger.info(f"DataExtractor initialized for org: {org_alias}")
 
     def parse_soql_structure(self, soql: str) -> Dict[str, Any]:
-        """Parse SOQL query structure.
-
-        Args:
-            soql: SOQL query string
-
-        Returns:
-            Dict with parsed structure
-        """
+        """Parse SOQL query structure without regex backtracking risks."""
         upper_soql = soql.upper()
+        select_idx = upper_soql.find("SELECT ")
+        from_idx = upper_soql.find(" FROM ", select_idx + len("SELECT "))
 
-        # Extract SELECT clause
-        select_match = re.search(r"SELECT\s+(.+?)\s+FROM", upper_soql)
-        fields = (
-            [f.strip() for f in select_match.group(1).split(",")]
-            if select_match
-            else []
-        )
+        fields: List[str] = []
+        if select_idx != -1 and from_idx != -1 and from_idx > select_idx:
+            fields_segment = soql[select_idx + len("SELECT ") : from_idx]
+            fields = [field.strip() for field in fields_segment.split(",") if field.strip()]
 
-        # Extract FROM clause
-        from_match = re.search(r"FROM\s+(\w+)", upper_soql)
-        sobject = from_match.group(1) if from_match else None
-
-        # Check for WHERE clause
-        has_where = "WHERE" in upper_soql
+        sobject = None
+        if from_idx != -1:
+            from_segment = soql[from_idx + len(" FROM ") :].strip()
+            if from_segment:
+                sobject = from_segment.split()[0]
+                if sobject.endswith(","):
+                    sobject = sobject[:-1]
 
         return {
             "fields": fields,
             "sobject": sobject,
-            "has_where": has_where,
+            "has_where": " WHERE " in upper_soql,
             "original_query": soql,
         }
 

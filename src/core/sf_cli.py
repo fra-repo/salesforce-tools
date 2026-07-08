@@ -5,6 +5,7 @@ handling command execution, org discovery, and error handling.
 """
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +21,7 @@ from .exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+CLI_ARG_PATTERN = re.compile(r'^[A-Za-z0-9_@.,:=()<>%!/"\'\s-]+$')
 
 
 class SalesforceCliManager:
@@ -81,7 +83,15 @@ class SalesforceCliManager:
         Raises:
             QueryExecutionError: If command fails
         """
-        cmd = [self.sf_command] + args
+        safe_args = []
+        for arg in args:
+            if not isinstance(arg, str):
+                raise QueryExecutionError("", "Argomento CLI non valido", {"argument_type": type(arg).__name__})
+            if not CLI_ARG_PATTERN.fullmatch(arg):
+                raise QueryExecutionError("", "Argomento CLI contiene caratteri non validi", {"argument": arg})
+            safe_args.append(arg)
+
+        cmd = [self.sf_command] + safe_args
         logger.debug(f"Running: {' '.join(cmd)}")
 
         try:
@@ -90,7 +100,7 @@ class SalesforceCliManager:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                shell=True,
+                shell=False,
             )
 
             return {
@@ -274,6 +284,26 @@ class SalesforceCliManager:
         except Exception as e:
             logger.warning(f"Org validation failed for '{org_alias}': {e}")
             return False
+
+    def get_limits(self, org_alias: str) -> Any:
+        """Retrieve platform limits for the target org."""
+        if not self.validate_org(org_alias):
+            raise OrgNotFound(org_alias)
+
+        result = self._run_command(
+            ["org", "list", "limits", "--target-org", org_alias, "--json"]
+        )
+        if not result["success"]:
+            raise QueryExecutionError(org_alias, result.get("stderr", "Unknown error"), result)
+
+        try:
+            payload = json.loads(result["stdout"])
+        except json.JSONDecodeError as e:
+            raise QueryExecutionError(org_alias, f"Risposta CLI non valida: {e}", {"response": result})
+
+        if isinstance(payload, dict):
+            return payload.get("result", payload)
+        return payload
 
     def execute_soql(
         self, soql: str, org_alias: str, validate_size: bool = True

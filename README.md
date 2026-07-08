@@ -89,11 +89,35 @@ source venv/bin/activate  # Unix
 # oppure
 venv\Scripts\activate  # Windows
 
-# Installa dipendenze
+# Installa dipendenze backend / desktop UI legacy
 pip install -r requirements.txt
+```
 
-# Avvia suite
+### Avvio UI desktop Python (esistente)
+
+```bash
 python salesforce_tool.py
+```
+
+### Avvio backend adapter + nuovo frontend TypeScript
+
+```bash
+# 1) Backend adapter HTTP minimale
+python -m src.api.server
+
+# 2) In un secondo terminale
+cd frontend
+cp .env.example .env.local  # opzionale
+npm install
+npm run dev
+```
+
+### Build frontend TypeScript
+
+```bash
+cd frontend
+npm run build
+npm run preview
 ```
 
 ### Autenticazione Salesforce
@@ -108,9 +132,58 @@ sf org list
 
 ---
 
+## 🌐 Migrazione UI Python → TypeScript
+
+### Individuazione UI attuale
+
+**UI attiva (desktop Python):**
+- `salesforce_tool.py` → shell principale CustomTkinter con sidebar e navigazione tool
+- `src/ui/massive_query_app.py` → schermata Massive Query
+- `src/ui/viewer_app.py` → schermata Data Viewer
+- `src/ui/limit_monitor_app.py` → schermata Platform Limits
+- `src/ui/modern_components.py`, `src/ui/modern_theme.py`, `src/ui/styles.py` → design system desktop
+
+**UI legacy / standalone:**
+- `massive_query_salesforce.py`
+- `salesforce_viewer.py`
+- `platform_limit.py`
+
+**Cosa non è UI:**
+- `src/core/*` → wrapper Salesforce CLI, validazione SOQL, eccezioni
+- `src/operations/*` → estrazione dati ed export
+- `src/config.py`, `src/logging_config.py` → configurazione e logging
+
+**Conclusione:** nel repository **non esisteva una web UI vera e propria**. La UI Python esistente è una GUI desktop `tkinter/customtkinter`, quindi la migrazione frontend è partita con uno scaffold React + Vite collegato a un adapter HTTP minimale.
+
+### Mappa migrazione UI
+
+| Origine Python | Destinazione TypeScript | Stato | Note |
+|---|---|---|---|
+| `salesforce_tool.py` | `frontend/src/App.tsx` overview + tab navigation | iniziale | shell web che documenta stato app e UI discovery |
+| `src/ui/massive_query_app.py` | tab **Massive Query** | iniziale | collegata a `POST /api/massive-query/execute` |
+| `src/ui/viewer_app.py` | tab **Data Viewer** | iniziale | upload CSV/JSON, filtro globale, paginazione, raw view client-side |
+| `src/ui/limit_monitor_app.py` | tab **Platform Limits** | iniziale | collegata a `GET /api/limits` |
+| backlog futuro (schema browser, saved queries) | placeholder overview | TODO | richiede API backend dedicate |
+
+### Decisioni e assunzioni
+
+- Nessun template HTML, Streamlit, Gradio, Flet, Flask o FastAPI è presente nel repository.
+- Per minimizzare modifiche invasive al backend, il nuovo layer web usa `python -m src.api.server` basato su `http.server` standard library.
+- Nel primo adapter web l'export server-side è volutamente fissato a `./salesforce_extracts` dentro la repository, così il browser non può richiedere scritture arbitrarie sul filesystem del server.
+- Il **Data Viewer** è stato portato lato browser perché la UI originale apriva file locali; non serviva introdurre un endpoint upload dedicato per una prima migrazione verificabile.
+- Il **Massive Query** e il **Limits Monitor** riusano i servizi Python esistenti (`src/core` + `src/operations`) tramite adapter HTTP minimale.
+- La presenza della Salesforce CLI resta un prerequisito anche per la nuova UI web quando si vogliono usare org discovery, query o limiti live.
+
 ## 📝 Configurazione
 
 File config: `~/.salesforce-tools/config.json`
+
+### Variabili d'ambiente frontend/backend
+
+- `SALESFORCE_TOOLS_API_HOST` (default `127.0.0.1`)
+- `SALESFORCE_TOOLS_API_PORT` (default `8000`)
+- `VITE_API_BASE_URL` (default `http://127.0.0.1:8000`, vedi `frontend/.env.example`)
+
 
 ```json
 {
