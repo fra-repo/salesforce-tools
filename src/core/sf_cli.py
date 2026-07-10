@@ -5,6 +5,7 @@ handling command execution, org discovery, and error handling.
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -51,22 +52,42 @@ class SalesforceCliManager:
         logger.info(f"Salesforce CLI Manager initialized with command: {self.sf_command}")
 
     def _find_cli_command(self) -> str:
-        """Find Salesforce CLI command in PATH.
+        """Find Salesforce CLI command.
 
-        Tries in order: sf, sf.cmd (Windows), sfdx, sfdx.cmd (Windows)
+        Resolution order:
+        1. SALESFORCE_CLI_PATH environment variable (explicit full path)
+        2. PATH discovery: sf, sf.cmd, sfdx, sfdx.cmd
 
         Returns:
-            str: The CLI command name
+            str: The CLI command path or name
 
         Raises:
-            CliNotFound: If no CLI command is found
+            CliNotFound: If no CLI command is found, with a message explaining how to fix it
         """
+        # 1. Explicit path from environment variable
+        configured_path = os.environ.get("SALESFORCE_CLI_PATH", "").strip()
+        if configured_path:
+            if Path(configured_path).is_file():
+                logger.info(f"Using Salesforce CLI from SALESFORCE_CLI_PATH: {configured_path}")
+                return configured_path
+            raise CliNotFound(
+                f"SALESFORCE_CLI_PATH è impostato a '{configured_path}' ma il file non esiste o non è accessibile. "
+                f"Verifica il percorso oppure rimuovi la variabile d'ambiente per usare il PATH di sistema."
+            )
+
+        # 2. PATH discovery
         candidates = ("sf", "sf.cmd", "sfdx", "sfdx.cmd")
         for candidate in candidates:
             if shutil.which(candidate):
                 logger.info(f"Found Salesforce CLI: {candidate}")
                 return candidate
-        raise CliNotFound()
+
+        raise CliNotFound(
+            "Salesforce CLI non trovata. "
+            "Installa 'sf' o 'sfdx' e assicurati che sia nel PATH, "
+            "oppure imposta la variabile d'ambiente SALESFORCE_CLI_PATH con il percorso completo dell'eseguibile "
+            "(es: C:\\Program Files\\Salesforce CLI\\sf.exe su Windows)."
+        )
 
     def _run_command(
         self, args: List[str], timeout: int = CLI_TIMEOUT
